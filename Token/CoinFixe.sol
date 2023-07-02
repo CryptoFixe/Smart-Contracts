@@ -15,12 +15,12 @@
 // SPDX-License-Identifier: MIT
 
 pragma solidity ^0.8.19;
-
 string constant NAME = "CryptoFixe";
 string constant SYMBOL = "CoinFixe";
 
-uint16 constant DECIMALS = 18;
+
 uint256 constant MAX_SUPPLY = 1_000_000_000;
+uint16 constant DECIMALS = 18;
 uint32 constant DENOMINATOR = 100000;
 
 abstract contract Context {
@@ -86,11 +86,13 @@ contract AccessControl is Ownable {
     }
     
     modifier onlyAdmin() {
+        require(owner() != address(0), "AccessControl: the contract is renounced.");
         require(_admins[_msgSender()], "AccessControl: caller is not an admin");
         _;
     }
     
     modifier onlyBridge() {
+        require(owner() != address(0), "AccessControl: the contract is renounced.");
         require(_bridges[_msgSender()], "AccessControl: caller is not a bridge");
         _;
     }
@@ -666,7 +668,8 @@ contract CryptoFixe is TradeManagedToken {
     uint256 public totalSellFee = 0;
     uint256 public totalEspecialNftBuyFee = 0;
     uint256 public totalEspecialNftSellFee = 0;
-    bool public especialNftFeesEnable = false;
+    bool public especialNftFeesEnable = true;
+    
     address[] private _nftList;
 
     mapping(address => bool) private _lpPairList;
@@ -682,13 +685,14 @@ contract CryptoFixe is TradeManagedToken {
 
     uint16 public maxFee = 10000;
 
-    event nftCollectionForFeesChanged(address collection, bool enabled);
-    event marketingWalletChanged(address marketingWallet);
-    event liquidityWalletChanged(address liquidityWallet);
-    event rewardsWalletChanged(address rewardsWallet);
-    event excludedFromFeesChanged(address indexed account, bool isExcluded);
-    event setLPPairChanged(address indexed pair, bool indexed value);
-    event feesChanged(uint64 liqBuyFee, uint64 marketingBuyFee, uint64 rewardsBuyFee, uint64 liqSellFee, 
+    event nftCollectionForFeesEvent(address collection, bool enabled);
+    event marketingWalletEvent(address marketingWallet);
+    event liquidityWalletEvent(address liquidityWallet);
+    event rewardsWalletEvent(address rewardsWallet);
+    event excludedFromFeesEvent(address indexed account, bool isExcluded);
+    event setLPPairEvent(address indexed pair, bool indexed value);
+    event processFeeReservesEvent(uint256 liquidityReserves, uint256 marketingReserves, uint256 rewardsReserves);
+    event feesEvent(uint64 liqBuyFee, uint64 marketingBuyFee, uint64 rewardsBuyFee, uint64 liqSellFee, 
                     uint64 marketingSellFee, uint64 rewardsSellFee, uint64 transferFee, bool isNftFees);
 
     constructor() ERC20(NAME, SYMBOL) {
@@ -722,13 +726,13 @@ contract CryptoFixe is TradeManagedToken {
     function setLPPair(address lpPair, bool enable) external onlyAdmin {
         require(_lpPairList[lpPair] != enable, "LP is already set to that state");
         _lpPairList[lpPair] = enable;
-        emit setLPPairChanged(lpPair, enable);
+        emit setLPPairEvent(lpPair, enable);
     }
 
     function excludedFromFees(address account, bool excluded) external onlyOwner {
         require(_isExcludedFromFees[account] != excluded, "Account is already set to that state");
         _isExcludedFromFees[account] = excluded;
-        emit excludedFromFeesChanged(account, excluded);
+        emit excludedFromFeesEvent(account, excluded);
     }
 
     function setRewardsWallet(address newRewardsWallet) external onlyOwner{
@@ -736,7 +740,7 @@ contract CryptoFixe is TradeManagedToken {
         require(newRewardsWallet != address(0), "Rewards wallet cannot be the zero address");
         rewardsWallet = newRewardsWallet;
         _isExcludedFromFees[newRewardsWallet] = true;
-        emit rewardsWalletChanged(rewardsWallet);
+        emit rewardsWalletEvent(rewardsWallet);
     }
 
     function setMarketingWallet(address newMarketingWallet) external onlyOwner{
@@ -744,7 +748,7 @@ contract CryptoFixe is TradeManagedToken {
         require(marketingWallet != newMarketingWallet, "Marketing wallet is already that address");
         marketingWallet = newMarketingWallet;
         _isExcludedFromFees[marketingWallet] = true;
-        emit marketingWalletChanged(marketingWallet);
+        emit marketingWalletEvent(marketingWallet);
     }
 
     function setLiquidityWallet(address newLiquidityWallet) external onlyOwner{
@@ -752,7 +756,7 @@ contract CryptoFixe is TradeManagedToken {
         require(liquidityWallet != newLiquidityWallet, "Liquidity wallet is already that address");
         liquidityWallet = newLiquidityWallet;
         _isExcludedFromFees[liquidityWallet] = true;
-        emit liquidityWalletChanged(liquidityWallet);
+        emit liquidityWalletEvent(liquidityWallet);
     }
 
     function updateMaxFee(uint16 newValue) external onlyOwner{
@@ -796,7 +800,7 @@ contract CryptoFixe is TradeManagedToken {
             totalBuyFee = liqBuyFee + marketingBuyFee + rewardsBuyFee;
             totalSellFee = liqSellFee + marketingSellFee + rewardsSellFee;
         }
-        emit feesChanged(liqBuyFee, marketingBuyFee, rewardsBuyFee, liqSellFee, marketingSellFee, rewardsSellFee, transferFee, isNftFees);
+        emit feesEvent(liqBuyFee, marketingBuyFee, rewardsBuyFee, liqSellFee, marketingSellFee, rewardsSellFee, transferFee, isNftFees);
     }
 
     function transferFrom(
@@ -835,30 +839,34 @@ contract CryptoFixe is TradeManagedToken {
         uint256 amount) 
         private returns (bool) {
         require(amount > 0, "Token: Cannot transfer zero(0) tokens");
-        uint256 ttFees = 0;
+        uint256 totalFees = 0;
         uint256 left = 0;
         bool isBuy = _lpPairList[sender];
         bool isSell = _lpPairList[recipient];
-         if (!isBuy && !isSell) {
+        if (
+            (!isBuy && !isSell) ||
+            (isBuy && _isExcludedFromFees[recipient]) ||
+            (isSell && _isExcludedFromFees[sender])
+        ){
             if(_fees.transferFee > 0 && !_isExcludedFromFees[recipient] && !_isExcludedFromFees[sender]) {
                 bool hasNFT = false;
                 if(especialNftFeesEnable){
                     hasNFT = (_verifyNftOwnerForEspecialFees(sender) || _verifyNftOwnerForEspecialFees(recipient));
                 }
                 if(hasNFT){
-                    ttFees = (amount * _especialNftFees.transferFee) / DENOMINATOR;
+                    totalFees = (amount * _especialNftFees.transferFee) / DENOMINATOR;
                 }else{
-                    ttFees = (amount * _fees.transferFee) / DENOMINATOR;
+                    totalFees = (amount * _fees.transferFee) / DENOMINATOR;
                 }
-                marketingReserves += ttFees;
+                marketingReserves += totalFees;
             }
-        }else if(isBuy || isSell){
-            ttFees = _calculateDexFees(isBuy, amount, (isBuy ? recipient : sender )) ;
+        }else{
+            totalFees = _calculateDexFees(isBuy, amount, (isBuy ? recipient : sender )) ;
         }
-        left = amount - ttFees;
+        left = amount - totalFees;
         super._transfer(sender, recipient, left);
-        if(ttFees > 0){
-            super._transfer(sender, address(this), ttFees);
+        if(totalFees > 0){
+            super._transfer(sender, address(this), totalFees);
         }
         return true;
     }
@@ -867,7 +875,7 @@ contract CryptoFixe is TradeManagedToken {
         uint256 liquidityFeeAmount = 0;
         uint256 marketingFeeAmount = 0;
         uint256 rewardsFeeAmount = 0;
-        uint256 ttFeess = 0;
+        uint256 totalFees = 0;
         bool hasNft = false;
 
         if (especialNftFeesEnable){
@@ -919,13 +927,13 @@ contract CryptoFixe is TradeManagedToken {
                 }
             }
         }
-        ttFeess = liquidityFeeAmount + marketingFeeAmount + rewardsFeeAmount;
-        if(ttFeess > 0){
+        totalFees = liquidityFeeAmount + marketingFeeAmount + rewardsFeeAmount;
+        if(totalFees > 0){
             liquidityReserves += liquidityFeeAmount;
             marketingReserves += marketingFeeAmount;
             rewardsReserves += rewardsFeeAmount;
         }
-        return ttFeess;
+        return totalFees;
     }
 
     function processFeeReserves() external onlyAdmin {
@@ -941,6 +949,7 @@ contract CryptoFixe is TradeManagedToken {
             super._transfer(address(this), rewardsWallet, rewardsReserves);
             rewardsReserves = 0;
         }
+        emit processFeeReservesEvent(liquidityReserves, marketingReserves, rewardsReserves);
     }
 
     function setNFTCollectionForFees(address collection, bool enabled) external onlyOwner{
@@ -953,7 +962,6 @@ contract CryptoFixe is TradeManagedToken {
                 }
                 if(!enabled){
                     delete(_nftList[i]);
-
                     for (uint i2 = i; i2 < _nftList.length - 1; i2++) {
                         _nftList[i2] = _nftList[i2 + 1];
                     }
@@ -965,6 +973,6 @@ contract CryptoFixe is TradeManagedToken {
         if(enabled){
             _nftList.push(collection);
         }
-        emit nftCollectionForFeesChanged(collection, enabled);
+        emit nftCollectionForFeesEvent(collection, enabled);
     }
 }
