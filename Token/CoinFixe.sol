@@ -1,33 +1,28 @@
 /*
- 
     ░█████╗░██████╗░██╗░░░██╗██████╗░████████╗░█████╗░███████╗██╗██╗░░██╗███████╗
     ██╔══██╗██╔══██╗╚██╗░██╔╝██╔══██╗╚══██╔══╝██╔══██╗██╔════╝██║╚██╗██╔╝██╔════╝
     ██║░░╚═╝██████╔╝░╚████╔╝░██████╔╝░░░██║░░░██║░░██║█████╗░░██║░╚███╔╝░█████╗░░
     ██║░░██╗██╔══██╗░░╚██╔╝░░██╔═══╝░░░░██║░░░██║░░██║██╔══╝░░██║░██╔██╗░██╔══╝░░
     ╚█████╔╝██║░░██║░░░██║░░░██║░░░░░░░░██║░░░╚█████╔╝██║░░░░░██║██╔╝╚██╗███████╗
     ░╚════╝░╚═╝░░╚═╝░░░╚═╝░░░╚═╝░░░░░░░░╚═╝░░░░╚════╝░╚═╝░░░░░╚═╝╚═╝░░╚═╝╚══════╝
-                                https://CryptoFixe.com
- 
-*/
+                            https://CryptoFixe.com
+*/                              
+/********************************************************************************
+ *              It's a registered trademark of the Nespinker                    *
+ *                           https://Nespinker.com                              *
+ ********************************************************************************/
 
 // SPDX-License-Identifier: MIT
 
-
-// File @openzeppelin/contracts/utils/Context.sol@v4.7.3
-// OpenZeppelin Contracts v4.4.1 (utils/Context.sol)
-
 pragma solidity ^0.8.19;
 
-/**
- * @dev Provides information about the current execution context, including the
- * sender of the transaction and its data. While these are generally available
- * via msg.sender and msg.data, they should not be accessed in such a direct
- * manner, since when dealing with meta-transactions the account sending and
- * paying for execution may not be the actual sender (as far as an application
- * is concerned).
- *
- * This contract is only required for intermediate, library-like contracts.
- */
+string constant NAME = "CryptoFixe";
+string constant SYMBOL = "CoinFixe";
+
+uint16 constant DECIMALS = 18;
+uint256 constant MAX_SUPPLY = 1_000_000_000;
+uint32 constant DENOMINATOR = 100000;
+
 abstract contract Context {
     function _msgSender() internal view virtual returns (address) {
         return msg.sender;
@@ -38,24 +33,6 @@ abstract contract Context {
     }
 }
 
-// File @openzeppelin/contracts/access/Ownable.sol@v4.7.3
-
-// OpenZeppelin Contracts (last updated v4.7.0) (access/Ownable.sol)
-
-pragma solidity ^0.8.0;
-
-/**
- * @dev Contract module which provides a basic access control mechanism, where
- * there is an account (an owner) that can be granted exclusive access to
- * specific functions.
- *
- * By default, the owner account will be the one that deploys the contract. This
- * can later be changed with {transferOwnership}.
- *
- * This module is used through inheritance. It will make available the modifier
- * `onlyOwner`, which can be applied to your functions to restrict their use to
- * the owner.
- */
 abstract contract Ownable is Context {
     address private _owner;
 
@@ -64,50 +41,27 @@ abstract contract Ownable is Context {
         address indexed newOwner
     );
 
-    /**
-     * @dev Initializes the contract setting the deployer as the initial owner.
-     */
     constructor() {
         _transferOwnership(_msgSender());
     }
 
-    /**
-     * @dev Throws if called by any account other than the owner.
-     */
     modifier onlyOwner() {
         _checkOwner();
         _;
     }
 
-    /**
-     * @dev Returns the address of the current owner.
-     */
     function owner() public view virtual returns (address) {
         return _owner;
     }
 
-    /**
-     * @dev Throws if the sender is not the owner.
-     */
     function _checkOwner() internal view virtual {
         require(owner() == _msgSender(), "Ownable: caller is not the owner");
     }
 
-    /**
-     * @dev Leaves the contract without owner. It will not be possible to call
-     * `onlyOwner` functions anymore. Can only be called by the current owner.
-     *
-     * NOTE: Renouncing ownership will leave the contract without an owner,
-     * thereby removing any functionality that is only available to the owner.
-     */
     function renounceOwnership() public virtual onlyOwner {
         _transferOwnership(address(0));
     }
 
-    /**
-     * @dev Transfers ownership of the contract to a new account (`newOwner`).
-     * Can only be called by the current owner.
-     */
     function transferOwnership(address newOwner) public virtual onlyOwner {
         require(
             newOwner != address(0),
@@ -116,10 +70,6 @@ abstract contract Ownable is Context {
         _transferOwnership(newOwner);
     }
 
-    /**
-     * @dev Transfers ownership of the contract to a new account (`newOwner`).
-     * Internal function without access restriction.
-     */
     function _transferOwnership(address newOwner) internal virtual {
         address oldOwner = _owner;
         _owner = newOwner;
@@ -127,21 +77,30 @@ abstract contract Ownable is Context {
     }
 }
 
-// File contracts/AccessControl.sol
-
-pragma solidity ^0.8.19;
-
 contract AccessControl is Ownable {
     mapping(address => bool) private _admins;
     mapping(address => bool) private _bridges;
-    
+
     constructor() {
         _admins[_msgSender()] = true;
     }
- 
+    
     modifier onlyAdmin() {
         require(_admins[_msgSender()], "AccessControl: caller is not an admin");
         _;
+    }
+    
+    modifier onlyBridge() {
+        require(_bridges[_msgSender()], "AccessControl: caller is not a bridge");
+        _;
+    }
+    
+    function removeBridge(address account) external onlyOwner {
+        _bridges[account] = false;
+    }
+
+    function addBridge(address account) external onlyOwner {
+        _bridges[account] = true;
     }
 
     function addAdmin(address account) external onlyOwner {
@@ -163,105 +122,23 @@ contract AccessControl is Ownable {
     function isAdmin(address account) public view returns (bool) {
         return _admins[account];
     }
-
-    function setBridge(address account, bool enable) external onlyOwner{
-        _bridges[account] = enable;
-    }
-    
-    function isABridge(address account) public view returns (bool) {
-        return _bridges[account];
-    }
-
-    modifier onlyBridge() {
-        require(_bridges[msg.sender], "AccessControl: Only our bridge can call this function");
-         _; 
-    }
 }
 
-// File @openzeppelin/contracts/token/ERC20/IERC20.sol@v4.7.3
-
-// OpenZeppelin Contracts (last updated v4.6.0) (token/ERC20/IERC20.sol)
-
-pragma solidity ^0.8.0;
-
-/**
- * @dev Interface of the ERC20 standard as defined in the EIP.
- */
 interface IERC20 {
-    /**
-     * @dev Emitted when `value` tokens are moved from one account (`from`) to
-     * another (`to`).
-     *
-     * Note that `value` may be zero.
-     */
     event Transfer(address indexed from, address indexed to, uint256 value);
-
-    /**
-     * @dev Emitted when the allowance of a `spender` for an `owner` is set by
-     * a call to {approve}. `value` is the new allowance.
-     */
     event Approval(
         address indexed owner,
         address indexed spender,
         uint256 value
     );
-
-    /**
-     * @dev Returns the amount of tokens in existence.
-     */
     function totalSupply() external view returns (uint256);
-
-    /**
-     * @dev Returns the amount of tokens owned by `account`.
-     */
     function balanceOf(address account) external view returns (uint256);
-
-    /**
-     * @dev Moves `amount` tokens from the caller's account to `to`.
-     *
-     * Returns a boolean value indicating whether the operation succeeded.
-     *
-     * Emits a {Transfer} event.
-     */
     function transfer(address to, uint256 amount) external returns (bool);
-
-    /**
-     * @dev Returns the remaining number of tokens that `spender` will be
-     * allowed to spend on behalf of `owner` through {transferFrom}. This is
-     * zero by default.
-     *
-     * This value changes when {approve} or {transferFrom} are called.
-     */
     function allowance(address owner, address spender)
         external
         view
         returns (uint256);
-
-    /**
-     * @dev Sets `amount` as the allowance of `spender` over the caller's tokens.
-     *
-     * Returns a boolean value indicating whether the operation succeeded.
-     *
-     * IMPORTANT: Beware that changing an allowance with this method brings the risk
-     * that someone may use both the old and the new allowance by unfortunate
-     * transaction ordering. One possible solution to mitigate this race
-     * condition is to first reduce the spender's allowance to 0 and set the
-     * desired value afterwards:
-     * https://github.com/ethereum/EIPs/issues/20#issuecomment-263524729
-     *
-     * Emits an {Approval} event.
-     */
     function approve(address spender, uint256 amount) external returns (bool);
-
-    /**
-     * @dev Moves `amount` tokens from `from` to `to` using the
-     * allowance mechanism. `amount` is then deducted from the caller's
-     * allowance.
-     *
-     * Returns a boolean value indicating whether the operation succeeded.
-     *
-     * Emits a {Transfer} event.
-     */
     function transferFrom(
         address from,
         address to,
@@ -269,130 +146,40 @@ interface IERC20 {
     ) external returns (bool);
 }
 
-// File @openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol@v4.7.3
-
-// OpenZeppelin Contracts v4.4.1 (token/ERC20/extensions/IERC20Metadata.sol)
-pragma solidity ^0.8.0;
-
-/**
- * @dev Interface for the optional metadata functions from the ERC20 standard.
- *
- * _Available since v4.1._
- */
 interface IERC20Metadata is IERC20 {
-    /**
-     * @dev Returns the name of the token.
-     */
     function name() external view returns (string memory);
-
-    /**
-     * @dev Returns the symbol of the token.
-     */
     function symbol() external view returns (string memory);
-
-    /**
-     * @dev Returns the decimals places of the token.
-     */
     function decimals() external view returns (uint8);
 }
 
-// File @openzeppelin/contracts/token/ERC20/ERC20.sol@v4.7.3
-
-// OpenZeppelin Contracts (last updated v4.7.0) (token/ERC20/ERC20.sol)
-
-pragma solidity ^0.8.0;
-
-/**
- * @dev Implementation of the {IERC20} interface.
- *
- * This implementation is agnostic to the way tokens are created. This means
- * that a supply mechanism has to be added in a derived contract using {_mint}.
- * For a generic mechanism see {ERC20PresetMinterPauser}.
- *
- * TIP: For a detailed writeup see our guide
- * https://forum.zeppelin.solutions/t/how-to-implement-erc20-supply-mechanisms/226[How
- * to implement supply mechanisms].
- *
- * We have followed general OpenZeppelin Contracts guidelines: functions revert
- * instead returning `false` on failure. This behavior is nonetheless
- * conventional and does not conflict with the expectations of ERC20
- * applications.
- *
- * Additionally, an {Approval} event is emitted on calls to {transferFrom}.
- * This allows applications to reconstruct the allowance for all accounts just
- * by listening to said events. Other implementations of the EIP may not emit
- * these events, as it isn't required by the specification.
- *
- * Finally, the non-standard {decreaseAllowance} and {increaseAllowance}
- * functions have been added to mitigate the well-known issues around setting
- * allowances. See {IERC20-approve}.
- */
 contract ERC20 is Context, IERC20, IERC20Metadata, AccessControl {
     mapping(address => uint256) private _balances;
-
     mapping(address => mapping(address => uint256)) private _allowances;
-
     uint256 private _totalSupply;
-    
     string private _name;
     string private _symbol;
 
-    /**
-     * @dev Sets the values for {name} and {symbol}.
-     *
-     * The default value of {decimals} is 18. To select a different value for
-     * {decimals} you should overload it.
-     *
-     * All two of these values are immutable: they can only be set once during
-     * construction.
-     */
     constructor(string memory name_, string memory symbol_) {
         _name = name_;
         _symbol = symbol_;
     }
 
-    /**
-     * @dev Returns the name of the token.
-     */
     function name() public view virtual override returns (string memory) {
         return _name;
     }
 
-    /**
-     * @dev Returns the symbol of the token, usually a shorter version of the
-     * name.
-     */
     function symbol() public view virtual override returns (string memory) {
         return _symbol;
     }
 
-    /**
-     * @dev Returns the number of decimals used to get its user representation.
-     * For example, if `decimals` equals `2`, a balance of `505` tokens should
-     * be displayed to a user as `5.05` (`505 / 10 ** 2`).
-     *
-     * Tokens usually opt for a value of 18, imitating the relationship between
-     * Ether and Wei. This is the value {ERC20} uses, unless this function is
-     * overridden;
-     *
-     * NOTE: This information is only used for _display_ purposes: it in
-     * no way affects any of the arithmetic of the contract, including
-     * {IERC20-balanceOf} and {IERC20-transfer}.
-     */
     function decimals() public view virtual override returns (uint8) {
         return 18;
     }
 
-    /**
-     * @dev See {IERC20-totalSupply}.
-     */
     function totalSupply() public view virtual override returns (uint256) {
         return _totalSupply;
     }
 
-    /**
-     * @dev See {IERC20-balanceOf}.
-     */
     function balanceOf(address account)
         public
         view
@@ -403,14 +190,6 @@ contract ERC20 is Context, IERC20, IERC20Metadata, AccessControl {
         return _balances[account];
     }
 
-    /**
-     * @dev See {IERC20-transfer}.
-     *
-     * Requirements:
-     *
-     * - `to` cannot be the zero address.
-     * - the caller must have a balance of at least `amount`.
-     */
     function transfer(address to, uint256 amount)
         public
         virtual
@@ -422,9 +201,6 @@ contract ERC20 is Context, IERC20, IERC20Metadata, AccessControl {
         return true;
     }
 
-    /**
-     * @dev See {IERC20-allowance}.
-     */
     function allowance(address owner, address spender)
         public
         view
@@ -435,16 +211,6 @@ contract ERC20 is Context, IERC20, IERC20Metadata, AccessControl {
         return _allowances[owner][spender];
     }
 
-    /**
-     * @dev See {IERC20-approve}.
-     *
-     * NOTE: If `amount` is the maximum `uint256`, the allowance is not updated on
-     * `transferFrom`. This is semantically equivalent to an infinite approval.
-     *
-     * Requirements:
-     *
-     * - `spender` cannot be the zero address.
-     */
     function approve(address spender, uint256 amount)
         public
         virtual
@@ -456,22 +222,6 @@ contract ERC20 is Context, IERC20, IERC20Metadata, AccessControl {
         return true;
     }
 
-    /**
-     * @dev See {IERC20-transferFrom}.
-     *
-     * Emits an {Approval} event indicating the updated allowance. This is not
-     * required by the EIP. See the note at the beginning of {ERC20}.
-     *
-     * NOTE: Does not update the allowance if the current allowance
-     * is the maximum `uint256`.
-     *
-     * Requirements:
-     *
-     * - `from` and `to` cannot be the zero address.
-     * - `from` must have a balance of at least `amount`.
-     * - the caller must have allowance for ``from``'s tokens of at least
-     * `amount`.
-     */
     function transferFrom(
         address from,
         address to,
@@ -483,18 +233,6 @@ contract ERC20 is Context, IERC20, IERC20Metadata, AccessControl {
         return true;
     }
 
-    /**
-     * @dev Atomically increases the allowance granted to `spender` by the caller.
-     *
-     * This is an alternative to {approve} that can be used as a mitigation for
-     * problems described in {IERC20-approve}.
-     *
-     * Emits an {Approval} event indicating the updated allowance.
-     *
-     * Requirements:
-     *
-     * - `spender` cannot be the zero address.
-     */
     function increaseAllowance(address spender, uint256 addedValue)
         public
         virtual
@@ -505,20 +243,6 @@ contract ERC20 is Context, IERC20, IERC20Metadata, AccessControl {
         return true;
     }
 
-    /**
-     * @dev Atomically decreases the allowance granted to `spender` by the caller.
-     *
-     * This is an alternative to {approve} that can be used as a mitigation for
-     * problems described in {IERC20-approve}.
-     *
-     * Emits an {Approval} event indicating the updated allowance.
-     *
-     * Requirements:
-     *
-     * - `spender` cannot be the zero address.
-     * - `spender` must have allowance for the caller of at least
-     * `subtractedValue`.
-     */
     function decreaseAllowance(address spender, uint256 subtractedValue)
         public
         virtual
@@ -533,24 +257,9 @@ contract ERC20 is Context, IERC20, IERC20Metadata, AccessControl {
         unchecked {
             _approve(owner, spender, currentAllowance - subtractedValue);
         }
-
         return true;
     }
 
-    /**
-     * @dev Moves `amount` of tokens from `from` to `to`.
-     *
-     * This internal function is equivalent to {transfer}, and can be used to
-     * e.g. implement automatic token fees, slashing mechanisms, etc.
-     *
-     * Emits a {Transfer} event.
-     *
-     * Requirements:
-     *
-     * - `from` cannot be the zero address.
-     * - `to` cannot be the zero address.
-     * - `from` must have a balance of at least `amount`.
-     */
     function _transfer(
         address from,
         address to,
@@ -558,9 +267,7 @@ contract ERC20 is Context, IERC20, IERC20Metadata, AccessControl {
     ) internal virtual {
         require(from != address(0), "ERC20: transfer from the zero address");
         require(to != address(0), "ERC20: transfer to the zero address");
-
         _beforeTokenTransfer(from, to, amount);
-
         uint256 fromBalance = _balances[from];
         require(
             fromBalance >= amount,
@@ -570,90 +277,32 @@ contract ERC20 is Context, IERC20, IERC20Metadata, AccessControl {
             _balances[from] = fromBalance - amount;
         }
         _balances[to] += amount;
-
         emit Transfer(from, to, amount);
-
         _afterTokenTransfer(from, to, amount);
     }
 
-    /** @dev Creates `amount` tokens and assigns them to `account`, increasing
-     * the total supply.
-     *
-     * Emits a {Transfer} event with `from` set to the zero address.
-     *
-     * Requirements:
-     *
-     * - `account` Cannot be the zero address.
-     * - `amount` Cannot mint more than the maximum supply
-     */
     function _mint(address account, uint256 amount) internal virtual {
-
-        require(owner() != address(0), "ERC20: Contract renounced and cannot mint new tokens");
-        require((_totalSupply + amount) <= (MAX_SUPPLY * 10**DECIMALS) ,"ERC20: Cannot mint more than the maximum supply" );
-      
         require(account != address(0), "ERC20: mint to the zero address");
         _beforeTokenTransfer(address(0), account, amount);
-
         _totalSupply += amount;
         _balances[account] += amount;
         emit Transfer(address(0), account, amount);
-
         _afterTokenTransfer(address(0), account, amount);
     }
 
-
-    /**
-     * @dev Destroys `amount` tokens from `account`, reducing the
-     * total supply.
-     *
-     * Emits a {Transfer} event with `to` set to the zero address.
-     *
-     * Requirements:
-     *
-     * - `account` cannot be the zero address.
-     * - `account` must have at least `amount` tokens.
-     */
     function _burn(address account, uint256 amount) internal virtual {
-        
         require(account != address(0), "ERC20: burn from the zero address");
-
         _beforeTokenTransfer(account, address(0), amount);
-
         uint256 accountBalance = _balances[account];
-
         require(accountBalance >= amount, "ERC20: burn amount exceeds balance");
-
         unchecked {
             _balances[account] = accountBalance - amount;
         }
         _totalSupply -= amount;
-
         emit Transfer(account, address(0), amount);
-
         _afterTokenTransfer(account, address(0), amount);
     }
 
-    function burn(address account, uint256 amount) external onlyBridge{
-        _burn(account, amount);
-    }
-
-    function mint(address account, uint256 amount) external onlyBridge {
-        _mint(account, amount);
-    }
-
-    /**
-     * @dev Sets `amount` as the allowance of `spender` over the `owner` s tokens.
-     *
-     * This internal function is equivalent to `approve`, and can be used to
-     * e.g. set automatic allowances for certain subsystems, etc.
-     *
-     * Emits an {Approval} event.
-     *
-     * Requirements:
-     *
-     * - `owner` cannot be the zero address.
-     * - `spender` cannot be the zero address.
-     */
     function _approve(
         address owner,
         address spender,
@@ -661,19 +310,10 @@ contract ERC20 is Context, IERC20, IERC20Metadata, AccessControl {
     ) internal virtual {
         require(owner != address(0), "ERC20: approve from the zero address");
         require(spender != address(0), "ERC20: approve to the zero address");
-
         _allowances[owner][spender] = amount;
         emit Approval(owner, spender, amount);
     }
 
-    /**
-     * @dev Updates `owner` s allowance for `spender` based on spent `amount`.
-     *
-     * Does not update the allowance amount in case of infinite allowance.
-     * Revert if not enough allowance is available.
-     *
-     * Might emit an {Approval} event.
-     */
     function _spendAllowance(
         address owner,
         address spender,
@@ -691,40 +331,12 @@ contract ERC20 is Context, IERC20, IERC20Metadata, AccessControl {
         }
     }
 
-    /**
-     * @dev Hook that is called before any transfer of tokens. This includes
-     * minting and burning.
-     *
-     * Calling conditions:
-     *
-     * - when `from` and `to` are both non-zero, `amount` of ``from``'s tokens
-     * will be transferred to `to`.
-     * - when `from` is zero, `amount` tokens will be minted for `to`.
-     * - when `to` is zero, `amount` of ``from``'s tokens will be burned.
-     * - `from` and `to` are never both zero.
-     *
-     * To learn more about hooks, head to xref:ROOT:extending-contracts.adoc#using-hooks[Using Hooks].
-     */
     function _beforeTokenTransfer(
         address from,
         address to,
         uint256 amount
     ) internal virtual {}
 
-    /**
-     * @dev Hook that is called after any transfer of tokens. This includes
-     * minting and burning.
-     *
-     * Calling conditions:
-     *
-     * - when `from` and `to` are both non-zero, `amount` of ``from``'s tokens
-     * has been transferred to `to`.
-     * - when `from` is zero, `amount` tokens have been minted for `to`.
-     * - when `to` is zero, `amount` of ``from``'s tokens have been burned.
-     * - `from` and `to` are never both zero.
-     *
-     * To learn more about hooks, head to xref:ROOT:extending-contracts.adoc#using-hooks[Using Hooks].
-     */
     function _afterTokenTransfer(
         address from,
         address to,
@@ -732,12 +344,7 @@ contract ERC20 is Context, IERC20, IERC20Metadata, AccessControl {
     ) internal virtual {}
 }
 
-// File contracts/TradeManagedToken.sol
-
-pragma solidity ^0.8.19;
-
 abstract contract TradeManagedToken is ERC20 {
-
     bool private _trading = false;
 
     function isTrading() external view returns (bool) {
@@ -755,75 +362,28 @@ abstract contract TradeManagedToken is ERC20 {
     ) internal virtual override {
         require(
             _trading || isAdmin(sender),
-            "TradeManagedToken: CryptoFie has not been released."
+            "TradeManagedToken: CryptoFixe has not been released."
         );
         super._transfer(sender, recipient, amount);
     }
 
+    function mint(address account, uint256 amount) external onlyBridge {
+        require((totalSupply() + amount) <= (MAX_SUPPLY * 10**DECIMALS) ,"ERC20: Cannot mint more than the maximum supply" );
+        _mint(account, amount);
+    }
 
+    function burn(address account, uint256 amount) external onlyBridge{
+        _burn(account, amount);
+    }
 
 }
 
-// File @openzeppelin/contracts/utils/Address.sol@v4.7.3
-
-// OpenZeppelin Contracts (last updated v4.7.0) (utils/Address.sol)
-
-pragma solidity ^0.8.1;
-
-/**
- * @dev Collection of functions related to the address type
- */
 library Address {
-    /**
-     * @dev Returns true if `account` is a contract.
-     *
-     * [IMPORTANT]
-     * ====
-     * It is unsafe to assume that an address for which this function returns
-     * false is an externally-owned account (EOA) and not a contract.
-     *
-     * Among others, `isContract` will return false for the following
-     * types of addresses:
-     *
-     *  - an externally-owned account
-     *  - a contract in construction
-     *  - an address where a contract will be created
-     *  - an address where a contract lived, but was destroyed
-     * ====
-     *
-     * [IMPORTANT]
-     * ====
-     * You shouldn't rely on `isContract` to protect against flash loan attacks!
-     *
-     * Preventing calls from contracts is highly discouraged. It breaks composability, breaks support for smart wallets
-     * like Gnosis Safe, and does not provide security since it can be circumvented by calling from a contract
-     * constructor.
-     * ====
-     */
-    function isContract(address account) internal view returns (bool) {
-        // This method relies on extcodesize/address.code.length, which returns 0
-        // for contracts in construction, since the code is only stored at the end
-        // of the constructor execution.
 
+    function isContract(address account) internal view returns (bool) {
         return account.code.length > 0;
     }
 
-    /**
-     * @dev Replacement for Solidity's `transfer`: sends `amount` wei to
-     * `recipient`, forwarding all available gas and reverting on errors.
-     *
-     * https://eips.ethereum.org/EIPS/eip-1884[EIP1884] increases the gas cost
-     * of certain opcodes, possibly making contracts go over the 2300 gas limit
-     * imposed by `transfer`, making them unable to receive funds via
-     * `transfer`. {sendValue} removes this limitation.
-     *
-     * https://diligence.consensys.net/posts/2019/09/stop-using-soliditys-transfer-now/[Learn more].
-     *
-     * IMPORTANT: because control is transferred to `recipient`, care must be
-     * taken to not create reentrancy vulnerabilities. Consider using
-     * {ReentrancyGuard} or the
-     * https://solidity.readthedocs.io/en/v0.5.11/security-considerations.html#use-the-checks-effects-interactions-pattern[checks-effects-interactions pattern].
-     */
     function sendValue(address payable recipient, uint256 amount) internal {
         require(
             address(this).balance >= amount,
@@ -837,24 +397,6 @@ library Address {
         );
     }
 
-    /**
-     * @dev Performs a Solidity function call using a low level `call`. A
-     * plain `call` is an unsafe replacement for a function call: use this
-     * function instead.
-     *
-     * If `target` reverts with a revert reason, it is bubbled up by this
-     * function (like regular Solidity function calls).
-     *
-     * Returns the raw returned data. To convert to the expected return value,
-     * use https://solidity.readthedocs.io/en/latest/units-and-global-variables.html?highlight=abi.decode#abi-encoding-and-decoding-functions[`abi.decode`].
-     *
-     * Requirements:
-     *
-     * - `target` must be a contract.
-     * - calling `target` with `data` must not revert.
-     *
-     * _Available since v3.1._
-     */
     function functionCall(address target, bytes memory data)
         internal
         returns (bytes memory)
@@ -862,12 +404,6 @@ library Address {
         return functionCall(target, data, "Address: low-level call failed");
     }
 
-    /**
-     * @dev Same as {xref-Address-functionCall-address-bytes-}[`functionCall`], but with
-     * `errorMessage` as a fallback revert reason when `target` reverts.
-     *
-     * _Available since v3.1._
-     */
     function functionCall(
         address target,
         bytes memory data,
@@ -876,17 +412,6 @@ library Address {
         return functionCallWithValue(target, data, 0, errorMessage);
     }
 
-    /**
-     * @dev Same as {xref-Address-functionCall-address-bytes-}[`functionCall`],
-     * but also transferring `value` wei to `target`.
-     *
-     * Requirements:
-     *
-     * - the calling contract must have an ETH balance of at least `value`.
-     * - the called Solidity function must be `payable`.
-     *
-     * _Available since v3.1._
-     */
     function functionCallWithValue(
         address target,
         bytes memory data,
@@ -901,12 +426,6 @@ library Address {
             );
     }
 
-    /**
-     * @dev Same as {xref-Address-functionCallWithValue-address-bytes-uint256-}[`functionCallWithValue`], but
-     * with `errorMessage` as a fallback revert reason when `target` reverts.
-     *
-     * _Available since v3.1._
-     */
     function functionCallWithValue(
         address target,
         bytes memory data,
@@ -918,19 +437,12 @@ library Address {
             "Address: insufficient balance for call"
         );
         require(isContract(target), "Address: call to non-contract");
-
         (bool success, bytes memory returndata) = target.call{value: value}(
             data
         );
         return verifyCallResult(success, returndata, errorMessage);
     }
 
-    /**
-     * @dev Same as {xref-Address-functionCall-address-bytes-}[`functionCall`],
-     * but performing a static call.
-     *
-     * _Available since v3.3._
-     */
     function functionStaticCall(address target, bytes memory data)
         internal
         view
@@ -944,29 +456,16 @@ library Address {
             );
     }
 
-    /**
-     * @dev Same as {xref-Address-functionCall-address-bytes-string-}[`functionCall`],
-     * but performing a static call.
-     *
-     * _Available since v3.3._
-     */
     function functionStaticCall(
         address target,
         bytes memory data,
         string memory errorMessage
     ) internal view returns (bytes memory) {
         require(isContract(target), "Address: static call to non-contract");
-
         (bool success, bytes memory returndata) = target.staticcall(data);
         return verifyCallResult(success, returndata, errorMessage);
     }
 
-    /**
-     * @dev Same as {xref-Address-functionCall-address-bytes-}[`functionCall`],
-     * but performing a delegate call.
-     *
-     * _Available since v3.4._
-     */
     function functionDelegateCall(address target, bytes memory data)
         internal
         returns (bytes memory)
@@ -979,29 +478,16 @@ library Address {
             );
     }
 
-    /**
-     * @dev Same as {xref-Address-functionCall-address-bytes-string-}[`functionCall`],
-     * but performing a delegate call.
-     *
-     * _Available since v3.4._
-     */
     function functionDelegateCall(
         address target,
         bytes memory data,
         string memory errorMessage
     ) internal returns (bytes memory) {
         require(isContract(target), "Address: delegate call to non-contract");
-
         (bool success, bytes memory returndata) = target.delegatecall(data);
         return verifyCallResult(success, returndata, errorMessage);
     }
 
-    /**
-     * @dev Tool to verifies that a low level call was successful, and revert if it wasn't, either by bubbling the
-     * revert reason using the provided one.
-     *
-     * _Available since v4.3._
-     */
     function verifyCallResult(
         bool success,
         bytes memory returndata,
@@ -1010,10 +496,9 @@ library Address {
         if (success) {
             return returndata;
         } else {
-            // Look for revert reason and bubble it up if present
+
             if (returndata.length > 0) {
-                // The easiest way to bubble the revert reason is using memory via assembly
-                /// @solidity memory-safe-assembly
+
                 assembly {
                     let returndata_size := mload(returndata)
                     revert(add(32, returndata), returndata_size)
@@ -1025,42 +510,7 @@ library Address {
     }
 }
 
-// File @openzeppelin/contracts/token/ERC20/extensions/draft-IERC20Permit.sol@v4.7.3
-
-// OpenZeppelin Contracts v4.4.1 (token/ERC20/extensions/draft-IERC20Permit.sol)
-
-pragma solidity ^0.8.0;
-
-/**
- * @dev Interface of the ERC20 Permit extension allowing approvals to be made via signatures, as defined in
- * https://eips.ethereum.org/EIPS/eip-2612[EIP-2612].
- *
- * Adds the {permit} method, which can be used to change an account's ERC20 allowance (see {IERC20-allowance}) by
- * presenting a message signed by the account. By not relying on {IERC20-approve}, the token holder account doesn't
- * need to send a transaction, and thus is not required to hold Ether at all.
- */
 interface IERC20Permit {
-    /**
-     * @dev Sets `value` as the allowance of `spender` over ``owner``'s tokens,
-     * given ``owner``'s signed approval.
-     *
-     * IMPORTANT: The same issues {IERC20-approve} has related to transaction
-     * ordering also apply here.
-     *
-     * Emits an {Approval} event.
-     *
-     * Requirements:
-     *
-     * - `spender` cannot be the zero address.
-     * - `deadline` must be a timestamp in the future.
-     * - `v`, `r` and `s` must be a valid `secp256k1` signature from `owner`
-     * over the EIP712-formatted function arguments.
-     * - the signature must use ``owner``'s current nonce (see {nonces}).
-     *
-     * For more information on the signature format, see the
-     * https://eips.ethereum.org/EIPS/eip-2612#specification[relevant EIP
-     * section].
-     */
     function permit(
         address owner,
         address spender,
@@ -1070,38 +520,10 @@ interface IERC20Permit {
         bytes32 r,
         bytes32 s
     ) external;
-
-    /**
-     * @dev Returns the current nonce for `owner`. This value must be
-     * included whenever a signature is generated for {permit}.
-     *
-     * Every successful call to {permit} increases ``owner``'s nonce by one. This
-     * prevents a signature from being used multiple times.
-     */
     function nonces(address owner) external view returns (uint256);
-
-    /**
-     * @dev Returns the domain separator used in the encoding of the signature for {permit}, as defined by {EIP712}.
-     */
-    // solhint-disable-next-line func-name-mixedcase
     function DOMAIN_SEPARATOR() external view returns (bytes32);
 }
 
-// File @openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol@v4.7.3
-
-// OpenZeppelin Contracts (last updated v4.7.0) (token/ERC20/utils/SafeERC20.sol)
-
-pragma solidity ^0.8.0;
-
-/**
- * @title SafeERC20
- * @dev Wrappers around ERC20 operations that throw on failure (when the token
- * contract returns false). Tokens that return no value (and instead revert or
- * throw on failure) are also supported, non-reverting calls are assumed to be
- * successful.
- * To use this library you can add a `using SafeERC20 for IERC20;` statement to your contract,
- * which allows you to call the safe operations as `token.safeTransfer(...)`, etc.
- */
 library SafeERC20 {
     using Address for address;
 
@@ -1128,21 +550,11 @@ library SafeERC20 {
         );
     }
 
-    /**
-     * @dev Deprecated. This function has issues similar to the ones found in
-     * {IERC20-approve}, and its usage is discouraged.
-     *
-     * Whenever possible, use {safeIncreaseAllowance} and
-     * {safeDecreaseAllowance} instead.
-     */
     function safeApprove(
         IERC20 token,
         address spender,
         uint256 value
     ) internal {
-        // safeApprove should only be called when setting an initial allowance,
-        // or when resetting it to zero. To increase and decrease it, use
-        // 'safeIncreaseAllowance' and 'safeDecreaseAllowance'
         require(
             (value == 0) || (token.allowance(address(this), spender) == 0),
             "SafeERC20: approve from non-zero to non-zero allowance"
@@ -1211,23 +623,12 @@ library SafeERC20 {
         );
     }
 
-    /**
-     * @dev Imitates a Solidity high-level call (i.e. a regular function call to a contract), relaxing the requirement
-     * on the return value: the return value is optional (but if data is returned, it must not be false).
-     * @param token The token targeted by the call.
-     * @param data The call data (encoded using abi.encode or one of its variants).
-     */
     function _callOptionalReturn(IERC20 token, bytes memory data) private {
-        // We need to perform a low level call here, to bypass Solidity's return data size checking mechanism, since
-        // we're implementing it ourselves. We use {Address.functionCall} to perform this call, which verifies that
-        // the target address contains contract code and also asserts for success in the low-level call.
-
         bytes memory returndata = address(token).functionCall(
             data,
             "SafeERC20: low-level call failed"
         );
         if (returndata.length > 0) {
-            // Return data is optional
             require(
                 abi.decode(returndata, (bool)),
                 "SafeERC20: ERC20 operation did not succeed"
@@ -1236,54 +637,40 @@ library SafeERC20 {
     }
 }
 
-pragma solidity ^0.8.19;
+interface IERC165 {
+    function supportsInterface(bytes4 interfaceId) external view returns (bool);
+}
 
-// File contracts/data/constants.sol
-uint16 constant DECIMALS = 18;  //18
-uint256 constant MAX_SUPPLY = 1_000_000_000;
-
-//For Tokenomics...
-uint256 constant TK_MKT = 200_000_000;
-uint256 constant TK_ECOSSYSTEM = 200_000_000;
-
-//Fees...
-uint32 constant DENOMINATOR = 100000;
-//Buy Fee...
-uint16 constant LIQ_BUY_FEE = 1000; // 1%
-uint16 constant MARKETING_BUY_FEE = 2000; // 2%
-uint16 constant REWARDS_BUY_FEE = 2000; // 2%
-//Sell Fee...
-uint16 constant LIQ_SELL_FEE = 1000; // 1%
-uint16 constant MARKETING_SELL_FEE = 2000; // 2%
-uint16 constant REWARDS_SELL_FEE = 2000; // 2%
-//Transfer between wallets...
-uint16 constant TRANSFER_FEE = 4000; // 5%
-
-//File contracts/COINFIXE.sol
-pragma solidity ^0.8.19;
+interface IERC721 is IERC165 {
+    function balanceOf(address owner) external view returns (uint256 balance);
+    function ownerOf(uint256 tokenId) external view returns (address owner);
+}
 
 struct Fees {
-
     uint64 liquidityBuyFee;
     uint64 marketingBuyFee;
     uint64 rewardsBuyFee;
-
     uint64 liquiditySellFee;
     uint64 marketingSellFee;
     uint64 rewardsSellFee;
-
     uint64 transferFee;
-
 }
 
 contract CryptoFixe is TradeManagedToken {
-    
     using SafeERC20 for IERC20;
 
-    Fees public fees = Fees(LIQ_BUY_FEE, MARKETING_BUY_FEE, REWARDS_BUY_FEE, LIQ_SELL_FEE, MARKETING_SELL_FEE, REWARDS_SELL_FEE, TRANSFER_FEE);
+    Fees private _fees = Fees(0,0,0,0,0,0,0);
+    Fees private _especialNftFees = Fees(0,0,0,0,0,0,0);
 
-    mapping(address => bool) public lpPairList;
-    mapping(address => bool) public isExcludedFromFee;
+    uint256 public totalBuyFee = 0;
+    uint256 public totalSellFee = 0;
+    uint256 public totalEspecialNftBuyFee = 0;
+    uint256 public totalEspecialNftSellFee = 0;
+    bool public especialNftFeesEnable = false;
+    address[] private _nftList;
+
+    mapping(address => bool) private _lpPairList;
+    mapping(address => bool) private _isExcludedFromFees;
 
     uint256 public liquidityReserves;
     uint256 public marketingReserves;
@@ -1295,93 +682,121 @@ contract CryptoFixe is TradeManagedToken {
 
     uint16 public maxFee = 10000;
 
-    constructor(
-        address _marketingWallet,
-        address _liquidityWallet,
-        address _ecossystemWallet,
-        address _rewardsWallet
-    ) ERC20("CryptoFixe", "CoinFixe") {
+    event nftCollectionForFeesChanged(address collection, bool enabled);
+    event marketingWalletChanged(address marketingWallet);
+    event liquidityWalletChanged(address liquidityWallet);
+    event rewardsWalletChanged(address rewardsWallet);
+    event excludedFromFeesChanged(address indexed account, bool isExcluded);
+    event setLPPairChanged(address indexed pair, bool indexed value);
+    event feesChanged(uint64 liqBuyFee, uint64 marketingBuyFee, uint64 rewardsBuyFee, uint64 liqSellFee, 
+                    uint64 marketingSellFee, uint64 rewardsSellFee, uint64 transferFee, bool isNftFees);
 
-        isExcludedFromFee[_msgSender()] = true;
-
-        isExcludedFromFee[address(this)] = true;
+    constructor() ERC20(NAME, SYMBOL) {
+        _isExcludedFromFees[_msgSender()] = true;
+        _isExcludedFromFees[address(this)] = true;
         _addAdmin(address(this));
-
-        marketingWallet = _marketingWallet;
-        isExcludedFromFee[marketingWallet] = true;
-
-        rewardsWallet = _rewardsWallet;
-        isExcludedFromFee[rewardsWallet] = true;
-
-        liquidityWallet = _liquidityWallet;
-        isExcludedFromFee[liquidityWallet] = true;
-
-        isExcludedFromFee[_ecossystemWallet] = true;
-
         _mint(_msgSender(), MAX_SUPPLY * 10**DECIMALS);
+    }
 
-        super._transfer(_msgSender(), _marketingWallet, TK_MKT * 10**DECIMALS);
-        super._transfer(_msgSender(), _ecossystemWallet, TK_ECOSSYSTEM * 10**DECIMALS);
+    function _verifyNftOwnerForEspecialFees(address account) private view returns(bool) {
+        uint256 l = _nftList.length;
+        for(uint8 i=0; i < l; i++){
+           if(IERC721(_nftList[i]).balanceOf(account) > 0){
+               return true;
+           }
+        }
+        return false;
+    }
+
+    function claimStuckTokens(address token) external onlyOwner {
+        require(token != address(this), "Owner cannot claim native tokens");
+        if (token == address(0x0)) {
+            payable(msg.sender).transfer(address(this).balance);
+            return;
+        }
+        IERC20 ERC20token = IERC20(token);
+        uint256 balance = ERC20token.balanceOf(address(this));
+        ERC20token.transfer(msg.sender, balance);
     }
     
-    function setLPPair(address _lpPair, bool _enable) external onlyOwner {
-        lpPairList[_lpPair] = _enable;
+    function setLPPair(address lpPair, bool enable) external onlyAdmin {
+        require(_lpPairList[lpPair] != enable, "LP is already set to that state");
+        _lpPairList[lpPair] = enable;
+        emit setLPPairChanged(lpPair, enable);
     }
 
-    function setRewardsWallet(address _rewardsWallet) external onlyOwner{
-        require(_rewardsWallet != address(0), "CoinFixe: Invalid address");
-        rewardsWallet = _rewardsWallet;
-        isExcludedFromFee[_rewardsWallet] = true;
+    function excludedFromFees(address account, bool excluded) external onlyOwner {
+        require(_isExcludedFromFees[account] != excluded, "Account is already set to that state");
+        _isExcludedFromFees[account] = excluded;
+        emit excludedFromFeesChanged(account, excluded);
     }
 
-    function setMarketingWallet(address _newMarketingWallet) external onlyOwner{
-        require(_newMarketingWallet != address(0), "CoinFixe: Invalid address");
-        marketingWallet = _newMarketingWallet;
-        isExcludedFromFee[marketingWallet] = true;
+    function setRewardsWallet(address newRewardsWallet) external onlyOwner{
+        require(rewardsWallet != newRewardsWallet, "Rewards wallet is already that address");
+        require(newRewardsWallet != address(0), "Rewards wallet cannot be the zero address");
+        rewardsWallet = newRewardsWallet;
+        _isExcludedFromFees[newRewardsWallet] = true;
+        emit rewardsWalletChanged(rewardsWallet);
     }
 
-    function setLiquidityWallet(address _newLiquidityWallet) external onlyOwner{
-        require(_newLiquidityWallet != address(0), "CoinFixe: Invalid address");
-        liquidityWallet = _newLiquidityWallet;
-        isExcludedFromFee[_newLiquidityWallet] = true;
+    function setMarketingWallet(address newMarketingWallet) external onlyOwner{
+        require(newMarketingWallet != address(0), "Marketing wallet cannot be the zero address");
+        require(marketingWallet != newMarketingWallet, "Marketing wallet is already that address");
+        marketingWallet = newMarketingWallet;
+        _isExcludedFromFees[marketingWallet] = true;
+        emit marketingWalletChanged(marketingWallet);
     }
 
-    function decreaseMaxFee(uint16 _value) external onlyOwner{
-        require(_value < maxFee && _value >= 0, "CoinFixe: Max fee cannot increase");
-        maxFee = _value;
+    function setLiquidityWallet(address newLiquidityWallet) external onlyOwner{
+        require(newLiquidityWallet != address(0), "Liquididy wallet cannot be the zero address");
+        require(liquidityWallet != newLiquidityWallet, "Liquidity wallet is already that address");
+        liquidityWallet = newLiquidityWallet;
+        _isExcludedFromFees[liquidityWallet] = true;
+        emit liquidityWalletChanged(liquidityWallet);
     }
 
-    function removeFeeForever() external onlyOwner{
-            maxFee = 0;
-            fees = Fees(0, 0, 0, 0, 0, 0, 0);
+    function updateMaxFee(uint16 newValue) external onlyOwner{
+        require(newValue < maxFee, "Token: Max fee cannot increase");
+        maxFee = newValue;
+        if(newValue == 0){
+            _removeFeeForever();
+        }
+    }
+
+    function _removeFeeForever() private{
+        maxFee = 0;
+        _fees = Fees(0, 0, 0, 0, 0, 0, 0);
+        _especialNftFees = Fees(0, 0, 0, 0, 0, 0, 0);
+    }
+    
+    function enableEspecialNftFees(bool enable) external onlyOwner{
+        especialNftFeesEnable = enable;
     }
 
     function setFees(
-        uint16 _liqBuyFee,
-        uint16 _marketingBuyFee,
-        uint16 _rewardsBuyFee,
-        uint16 _liqSellFee,
-        uint16 _marketingSellFee,
-        uint16 _rewardsSellFee,
-        uint16 _transferFee
+        uint64 liqBuyFee,
+        uint64 marketingBuyFee,
+        uint64 rewardsBuyFee,
+        uint64 liqSellFee,
+        uint64 marketingSellFee,
+        uint64 rewardsSellFee,
+        uint64 transferFee,
+        bool isNftFees
     ) external onlyOwner {
-        
-        uint16 _buy = (_liqBuyFee + _marketingBuyFee + _rewardsBuyFee);
-        uint16 _sell = (_liqSellFee + _marketingSellFee + _rewardsSellFee);
-
         require(
-            _buy <= maxFee 
-            && _sell <= maxFee
-            && (_transferFee <= maxFee),
-            "CoinFixe: fees are too high"
-        );
-
-        fees = Fees(_liqBuyFee, _marketingBuyFee, _rewardsBuyFee, _liqSellFee, _marketingSellFee, _rewardsSellFee, _transferFee);
-        maxFee = (_buy > _sell ? maxFee = _buy : maxFee = _sell);
-    }
-
-    function excemptFromFees(address _account, bool _exempt) external onlyOwner{
-        isExcludedFromFee[_account] = _exempt;
+            ((liqBuyFee + marketingBuyFee + rewardsBuyFee) <= maxFee ) 
+            && ((liqSellFee + marketingSellFee + rewardsSellFee) <= maxFee)
+            && (transferFee <= maxFee),"Token: fees are too high");
+        if(isNftFees){
+            _especialNftFees = Fees(liqBuyFee, marketingBuyFee, rewardsBuyFee, liqSellFee, marketingSellFee, rewardsSellFee, transferFee);
+            totalEspecialNftBuyFee = liqBuyFee + marketingBuyFee + rewardsBuyFee;
+            totalEspecialNftSellFee = liqSellFee + marketingSellFee + rewardsSellFee;
+        }else{
+            _fees = Fees(liqBuyFee, marketingBuyFee, rewardsBuyFee, liqSellFee, marketingSellFee, rewardsSellFee, transferFee);
+            totalBuyFee = liqBuyFee + marketingBuyFee + rewardsBuyFee;
+            totalSellFee = liqSellFee + marketingSellFee + rewardsSellFee;
+        }
+        emit feesChanged(liqBuyFee, marketingBuyFee, rewardsBuyFee, liqSellFee, marketingSellFee, rewardsSellFee, transferFee, isNftFees);
     }
 
     function transferFrom(
@@ -1394,26 +809,23 @@ contract CryptoFixe is TradeManagedToken {
             _msgSender(),
             allowance(sender, _msgSender()) - amount
         );
-        if(maxFee > 0) {
+        if(totalBuyFee > 0 || totalSellFee > 0){
             return _customTransfer(sender, recipient, amount);
         }else{
-
-             super._transfer(sender, recipient, amount);
-             return true;
+            super._transfer(sender, recipient, amount);
+            return true;
         }
-   
     }
 
     function transfer(
         address recipient, 
         uint256 amount) 
         public virtual override returns (bool){
-
-         if(maxFee > 0) {
-            return _customTransfer(_msgSender(), recipient, amount);
+        if(totalBuyFee > 0 || totalSellFee > 0){
+           return _customTransfer(_msgSender(), recipient, amount);
         }else{
-             super._transfer(_msgSender(), recipient, amount);
-             return true;
+            super._transfer(_msgSender(), recipient, amount);
+            return true;
         }
     }
 
@@ -1421,86 +833,138 @@ contract CryptoFixe is TradeManagedToken {
         address sender, 
         address recipient, 
         uint256 amount) 
-        internal returns (bool) {
-
-        require(amount > 0, "CoinFixe: Cannot transfer zero(0) tokens");
-
-        bool isBuy = lpPairList[sender];
-        bool isSell = lpPairList[recipient];
-
-        uint256 _liquidityFeeAmount = 0;
-        uint256 _marketingFeeAmount = 0;
-        uint256 _rewardsFeeAmount = 0;
-        uint256 _ttFeess = 0;
-        uint256 _left = 0;
-
-        if (
-            (!isBuy && !isSell) ||
-            (isBuy && isExcludedFromFee[recipient]) ||
-            (isSell && isExcludedFromFee[sender])
-        ) {
-
-            if(fees.transferFee > 0 && !isExcludedFromFee[sender] && !isExcludedFromFee[recipient]) {
-                _liquidityFeeAmount = (amount * fees.transferFee) / DENOMINATOR;
+        private returns (bool) {
+        require(amount > 0, "Token: Cannot transfer zero(0) tokens");
+        uint256 ttFees = 0;
+        uint256 left = 0;
+        bool isBuy = _lpPairList[sender];
+        bool isSell = _lpPairList[recipient];
+         if (!isBuy && !isSell) {
+            if(_fees.transferFee > 0 && !_isExcludedFromFees[recipient] && !_isExcludedFromFees[sender]) {
+                bool hasNFT = false;
+                if(especialNftFeesEnable){
+                    hasNFT = (_verifyNftOwnerForEspecialFees(sender) || _verifyNftOwnerForEspecialFees(recipient));
+                }
+                if(hasNFT){
+                    ttFees = (amount * _especialNftFees.transferFee) / DENOMINATOR;
+                }else{
+                    ttFees = (amount * _fees.transferFee) / DENOMINATOR;
+                }
+                marketingReserves += ttFees;
             }
-     
-        } else if (isBuy) {
-
-            if(fees.liquidityBuyFee > 0){
-                _liquidityFeeAmount = (amount * fees.liquidityBuyFee) / DENOMINATOR;
-            }
-             if(fees.marketingBuyFee > 0){
-                _marketingFeeAmount = (amount * fees.marketingBuyFee) / DENOMINATOR;
-            }
-            if(fees.rewardsBuyFee > 0){
-                _rewardsFeeAmount = (amount * fees.rewardsBuyFee) / DENOMINATOR;
-            }
-
-        } else if (isSell) {
-
-            if(fees.liquiditySellFee > 0){
-                _liquidityFeeAmount = (amount * fees.liquiditySellFee) / DENOMINATOR;
-            }
-             if(fees.marketingSellFee > 0){
-                _marketingFeeAmount = (amount * fees.marketingSellFee) / DENOMINATOR;
-            }
-            if(fees.rewardsSellFee > 0){
-                _rewardsFeeAmount = (amount * fees.rewardsSellFee) / DENOMINATOR;
-            }
-
+        }else if(isBuy || isSell){
+            ttFees = _calculateDexFees(isBuy, amount, (isBuy ? recipient : sender )) ;
         }
-
-        _ttFeess = _liquidityFeeAmount + _marketingFeeAmount + _rewardsFeeAmount;
-        _left = amount - _ttFeess;
-
-        super._transfer(sender, recipient, _left);
-
-        if(_ttFeess > 0){
-            super._transfer(sender, address(this), _ttFeess);
-            liquidityReserves += _liquidityFeeAmount;
-            marketingReserves += _marketingFeeAmount;
-            rewardsReserves += _rewardsFeeAmount;
+        left = amount - ttFees;
+        super._transfer(sender, recipient, left);
+        if(ttFees > 0){
+            super._transfer(sender, address(this), ttFees);
         }
-
         return true;
     }
 
-    function processFeeReserves() external onlyAdmin 
-    {
+    function _calculateDexFees(bool isBuy, uint256 amount, address toNftCheck) private returns(uint256) {
+        uint256 liquidityFeeAmount = 0;
+        uint256 marketingFeeAmount = 0;
+        uint256 rewardsFeeAmount = 0;
+        uint256 ttFeess = 0;
+        bool hasNft = false;
+
+        if (especialNftFeesEnable){
+            hasNft = _verifyNftOwnerForEspecialFees(toNftCheck);
+        }
+
+        if (isBuy) {
+            if(hasNft){
+                    if(_especialNftFees.liquidityBuyFee > 0){
+                        liquidityFeeAmount = (amount * _especialNftFees.liquidityBuyFee) / DENOMINATOR;
+                    }
+                    if(_especialNftFees.marketingBuyFee > 0){
+                        marketingFeeAmount = (amount * _especialNftFees.marketingBuyFee) / DENOMINATOR;
+                    }
+                    if(_especialNftFees.rewardsBuyFee > 0){
+                        rewardsFeeAmount = (amount * _especialNftFees.rewardsBuyFee) / DENOMINATOR;
+                    }
+            }else{
+                    if(_fees.liquidityBuyFee > 0){
+                        liquidityFeeAmount = (amount * _fees.liquidityBuyFee) / DENOMINATOR;
+                    }
+                    if(_fees.marketingBuyFee > 0){
+                        marketingFeeAmount = (amount * _fees.marketingBuyFee) / DENOMINATOR;
+                    }
+                    if(_fees.rewardsBuyFee > 0){
+                        rewardsFeeAmount = (amount * _fees.rewardsBuyFee) / DENOMINATOR;
+                    }
+            }
+        } else{
+            if(hasNft){
+                if(_especialNftFees.liquiditySellFee > 0){
+                    liquidityFeeAmount = (amount * _especialNftFees.liquiditySellFee) / DENOMINATOR;
+                }
+                if(_especialNftFees.marketingSellFee > 0){
+                    marketingFeeAmount = (amount * _especialNftFees.marketingSellFee) / DENOMINATOR;
+                }
+                if(_fees.rewardsSellFee > 0){
+                    rewardsFeeAmount = (amount * _especialNftFees.rewardsSellFee) / DENOMINATOR;
+                }
+            }else{
+                if(_fees.liquiditySellFee > 0){
+                    liquidityFeeAmount = (amount * _fees.liquiditySellFee) / DENOMINATOR;
+                }
+                if(_fees.marketingSellFee > 0){
+                    marketingFeeAmount = (amount * _fees.marketingSellFee) / DENOMINATOR;
+                }
+                if(_fees.rewardsSellFee > 0){
+                    rewardsFeeAmount = (amount * _fees.rewardsSellFee) / DENOMINATOR;
+                }
+            }
+        }
+        ttFeess = liquidityFeeAmount + marketingFeeAmount + rewardsFeeAmount;
+        if(ttFeess > 0){
+            liquidityReserves += liquidityFeeAmount;
+            marketingReserves += marketingFeeAmount;
+            rewardsReserves += rewardsFeeAmount;
+        }
+        return ttFeess;
+    }
+
+    function processFeeReserves() external onlyAdmin {
         if(liquidityReserves > 0){
-            require(liquidityWallet != address(0), "CoinFixe: Invalid lisquidity wallet address.");
             super._transfer(address(this), liquidityWallet, liquidityReserves);
             liquidityReserves = 0;
         }
         if(marketingReserves > 0){
-            require(marketingWallet != address(0), "CoinFixe: Invalid marketing wallet address.");
             super._transfer(address(this), marketingWallet, marketingReserves);
             marketingReserves = 0;
         }
         if(rewardsReserves > 0){
-            require(rewardsWallet != address(0), "CoinFixe: Invalid rewards wallet address.");
             super._transfer(address(this), rewardsWallet, rewardsReserves);
             rewardsReserves = 0;
         }
+    }
+
+    function setNFTCollectionForFees(address collection, bool enabled) external onlyOwner{
+        uint256 l = _nftList.length;
+        for (uint256 i = 0; i < l; i++)
+        {
+            if(_nftList[i] == collection){
+                if(enabled){
+                    require(_nftList[i] != collection, "Collection is already exist");      
+                }
+                if(!enabled){
+                    delete(_nftList[i]);
+
+                    for (uint i2 = i; i2 < _nftList.length - 1; i2++) {
+                        _nftList[i2] = _nftList[i2 + 1];
+                    }
+                    _nftList.pop();
+                    return;
+                }
+            }
+        }
+        if(enabled){
+            _nftList.push(collection);
+        }
+        emit nftCollectionForFeesChanged(collection, enabled);
     }
 }
