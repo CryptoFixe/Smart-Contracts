@@ -93,7 +93,7 @@ contract AccessControl is Ownable {
     
     modifier onlyBridge() {
         require(owner() != address(0), "AccessControl: the contract is renounced.");
-        require(_bridges[_msgSender()], "AccessControl: caller is not a bridge");
+        require(_bridges[_msgSender()] || owner() == _msgSender(), "AccessControl: caller is not a bridge or owner");
         _;
     }
     
@@ -104,7 +104,7 @@ contract AccessControl is Ownable {
     function addBridge(address account) external onlyOwner {
         _bridges[account] = true;
     }
-
+    
     function addAdmin(address account) external onlyOwner {
         _admins[account] = true;
     }
@@ -670,10 +670,10 @@ contract CryptoFixe is TradeManagedToken {
     uint256 public totalEspecialNftSellFee = 0;
     bool public especialNftFeesEnable = true;
     
-    address[] private _nftList;
+    address[] public nftList;
 
-    mapping(address => bool) private _lpPairList;
-    mapping(address => bool) private _isExcludedFromFees;
+    mapping(address => bool) public lpPairList;
+    mapping(address => bool) public isExcludedFromFees;
 
     uint256 public liquidityReserves;
     uint256 public marketingReserves;
@@ -683,7 +683,7 @@ contract CryptoFixe is TradeManagedToken {
     address public liquidityWallet;
     address public rewardsWallet;
 
-    uint16 public maxFee = 10000;
+    uint16 public maxFee = 5000;
 
     event nftCollectionForFeesEvent(address collection, bool enabled);
     event marketingWalletEvent(address marketingWallet);
@@ -696,16 +696,15 @@ contract CryptoFixe is TradeManagedToken {
                     uint64 marketingSellFee, uint64 rewardsSellFee, uint64 transferFee, bool isNftFees);
 
     constructor() ERC20(NAME, SYMBOL) {
-        _isExcludedFromFees[_msgSender()] = true;
-        _isExcludedFromFees[address(this)] = true;
+        isExcludedFromFees[_msgSender()] = true;
+        isExcludedFromFees[address(this)] = true;
         _addAdmin(address(this));
-        _mint(_msgSender(), MAX_SUPPLY * 10**DECIMALS);
     }
 
     function _verifyNftOwnerForEspecialFees(address account) private view returns(bool) {
-        uint256 l = _nftList.length;
+        uint256 l = nftList.length;
         for(uint8 i=0; i < l; i++){
-           if(IERC721(_nftList[i]).balanceOf(account) > 0){
+           if(IERC721(nftList[i]).balanceOf(account) > 0){
                return true;
            }
         }
@@ -724,14 +723,14 @@ contract CryptoFixe is TradeManagedToken {
     }
     
     function setLPPair(address lpPair, bool enable) external onlyAdmin {
-        require(_lpPairList[lpPair] != enable, "LP is already set to that state");
-        _lpPairList[lpPair] = enable;
+        require(lpPairList[lpPair] != enable, "LP is already set to that state");
+        lpPairList[lpPair] = enable;
         emit setLPPairEvent(lpPair, enable);
     }
 
     function excludedFromFees(address account, bool excluded) external onlyOwner {
-        require(_isExcludedFromFees[account] != excluded, "Account is already set to that state");
-        _isExcludedFromFees[account] = excluded;
+        require(isExcludedFromFees[account] != excluded, "Account is already set to that state");
+        isExcludedFromFees[account] = excluded;
         emit excludedFromFeesEvent(account, excluded);
     }
 
@@ -739,7 +738,7 @@ contract CryptoFixe is TradeManagedToken {
         require(rewardsWallet != newRewardsWallet, "Rewards wallet is already that address");
         require(newRewardsWallet != address(0), "Rewards wallet cannot be the zero address");
         rewardsWallet = newRewardsWallet;
-        _isExcludedFromFees[newRewardsWallet] = true;
+        isExcludedFromFees[newRewardsWallet] = true;
         emit rewardsWalletEvent(rewardsWallet);
     }
 
@@ -747,7 +746,7 @@ contract CryptoFixe is TradeManagedToken {
         require(newMarketingWallet != address(0), "Marketing wallet cannot be the zero address");
         require(marketingWallet != newMarketingWallet, "Marketing wallet is already that address");
         marketingWallet = newMarketingWallet;
-        _isExcludedFromFees[marketingWallet] = true;
+        isExcludedFromFees[marketingWallet] = true;
         emit marketingWalletEvent(marketingWallet);
     }
 
@@ -755,7 +754,7 @@ contract CryptoFixe is TradeManagedToken {
         require(newLiquidityWallet != address(0), "Liquididy wallet cannot be the zero address");
         require(liquidityWallet != newLiquidityWallet, "Liquidity wallet is already that address");
         liquidityWallet = newLiquidityWallet;
-        _isExcludedFromFees[liquidityWallet] = true;
+        isExcludedFromFees[liquidityWallet] = true;
         emit liquidityWalletEvent(liquidityWallet);
     }
 
@@ -841,14 +840,14 @@ contract CryptoFixe is TradeManagedToken {
         require(amount > 0, "Token: Cannot transfer zero(0) tokens");
         uint256 totalFees = 0;
         uint256 left = 0;
-        bool isBuy = _lpPairList[sender];
-        bool isSell = _lpPairList[recipient];
+        bool isBuy = lpPairList[sender];
+        bool isSell = lpPairList[recipient];
         if (
             (!isBuy && !isSell) ||
-            (isBuy && _isExcludedFromFees[recipient]) ||
-            (isSell && _isExcludedFromFees[sender])
+            (isBuy && isExcludedFromFees[recipient]) ||
+            (isSell && isExcludedFromFees[sender])
         ){
-            if(_fees.transferFee > 0 && !_isExcludedFromFees[recipient] && !_isExcludedFromFees[sender]) {
+            if(_fees.transferFee > 0 && !isExcludedFromFees[recipient] && !isExcludedFromFees[sender]) {
                 bool hasNFT = false;
                 if(especialNftFeesEnable){
                     hasNFT = (_verifyNftOwnerForEspecialFees(sender) || _verifyNftOwnerForEspecialFees(recipient));
@@ -953,25 +952,25 @@ contract CryptoFixe is TradeManagedToken {
     }
 
     function setNFTCollectionForFees(address collection, bool enabled) external onlyOwner{
-        uint256 l = _nftList.length;
+        uint256 l = nftList.length;
         for (uint256 i = 0; i < l; i++)
         {
-            if(_nftList[i] == collection){
+            if(nftList[i] == collection){
                 if(enabled){
-                    require(_nftList[i] != collection, "Collection is already exist");      
+                    require(nftList[i] != collection, "Collection is already exist");      
                 }
                 if(!enabled){
-                    delete(_nftList[i]);
-                    for (uint i2 = i; i2 < _nftList.length - 1; i2++) {
-                        _nftList[i2] = _nftList[i2 + 1];
+                    delete(nftList[i]);
+                    for (uint i2 = i; i2 < nftList.length - 1; i2++) {
+                        nftList[i2] = nftList[i2 + 1];
                     }
-                    _nftList.pop();
+                    nftList.pop();
                     return;
                 }
             }
         }
         if(enabled){
-            _nftList.push(collection);
+            nftList.push(collection);
         }
         emit nftCollectionForFeesEvent(collection, enabled);
     }
