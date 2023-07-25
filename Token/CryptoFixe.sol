@@ -679,20 +679,20 @@ contract CryptoFixe is TradeManagedToken {
     uint256 public marketingReserves;
     uint256 public rewardsReserves;
 
-    address public marketingWallet;
-    address public liquidityWallet;
-    address public rewardsWallet;
+    address public marketingAdress;
+    address public liquidityAdress;
+    address public rewardsAdress;
 
     uint16 public maxFee = 5000;
 
     event nftCollectionForFeesEvent(address collection, bool enabled);
-    event marketingWalletEvent(address marketingWallet);
-    event liquidityWalletEvent(address liquidityWallet);
-    event rewardsWalletEvent(address rewardsWallet);
+    event marketingAdressChangedEvent(address marketingAdress);
+    event liquidityAdressChangedEvent(address liquidityAdress);
+    event rewardsAdressChangedEvent(address rewardsAdress);
     event excludedFromFeesEvent(address indexed account, bool isExcluded);
     event setLPPairEvent(address indexed pair, bool indexed value);
     event processFeeReservesEvent(uint256 liquidityReserves, uint256 marketingReserves, uint256 rewardsReserves);
-    event feesEvent(uint64 liqBuyFee, uint64 marketingBuyFee, uint64 rewardsBuyFee, uint64 liqSellFee, 
+    event feesChangedEvent(uint64 liqBuyFee, uint64 marketingBuyFee, uint64 rewardsBuyFee, uint64 liqSellFee, 
                     uint64 marketingSellFee, uint64 rewardsSellFee, uint64 transferFee, bool isNftFees);
 
     constructor() ERC20(NAME, SYMBOL) {
@@ -734,28 +734,28 @@ contract CryptoFixe is TradeManagedToken {
         emit excludedFromFeesEvent(account, excluded);
     }
 
-    function setRewardsWallet(address newRewardsWallet) external onlyOwner{
-        require(rewardsWallet != newRewardsWallet, "Rewards wallet is already that address");
-        require(newRewardsWallet != address(0), "Rewards wallet cannot be the zero address");
-        rewardsWallet = newRewardsWallet;
-        isExcludedFromFees[newRewardsWallet] = true;
-        emit rewardsWalletEvent(rewardsWallet);
+    function setRewardsAdress(address newRewardsAdress) external onlyOwner{
+        require(rewardsAdress != newRewardsAdress, "Rewards Adress is already that address");
+        require(newRewardsAdress != address(0), "Rewards Adress cannot be the zero address");
+        rewardsAdress = newRewardsAdress;
+        isExcludedFromFees[newRewardsAdress] = true;
+        emit rewardsAdressChangedEvent(rewardsAdress);
     }
 
-    function setMarketingWallet(address newMarketingWallet) external onlyOwner{
-        require(newMarketingWallet != address(0), "Marketing wallet cannot be the zero address");
-        require(marketingWallet != newMarketingWallet, "Marketing wallet is already that address");
-        marketingWallet = newMarketingWallet;
-        isExcludedFromFees[marketingWallet] = true;
-        emit marketingWalletEvent(marketingWallet);
+    function setMarketingAdress(address newMarketingAdress) external onlyOwner{
+        require(newMarketingAdress != address(0), "Marketing Adress cannot be the zero address");
+        require(marketingAdress != newMarketingAdress, "Marketing Adress is already that address");
+        marketingAdress = newMarketingAdress;
+        isExcludedFromFees[marketingAdress] = true;
+        emit marketingAdressChangedEvent(marketingAdress);
     }
 
-    function setLiquidityWallet(address newLiquidityWallet) external onlyOwner{
-        require(newLiquidityWallet != address(0), "Liquididy wallet cannot be the zero address");
-        require(liquidityWallet != newLiquidityWallet, "Liquidity wallet is already that address");
-        liquidityWallet = newLiquidityWallet;
-        isExcludedFromFees[liquidityWallet] = true;
-        emit liquidityWalletEvent(liquidityWallet);
+    function setLiquidityAdress(address newLiquidityAdress) external onlyOwner{
+        require(newLiquidityAdress != address(0), "Liquididy Adress cannot be the zero address");
+        require(liquidityAdress != newLiquidityAdress, "Liquidity Adress is already that address");
+        liquidityAdress = newLiquidityAdress;
+        isExcludedFromFees[liquidityAdress] = true;
+        emit liquidityAdressChangedEvent(liquidityAdress);
     }
 
     function updateMaxFee(uint16 newValue) external onlyOwner{
@@ -768,8 +768,8 @@ contract CryptoFixe is TradeManagedToken {
 
     function _removeFeeForever() private{
         maxFee = 0;
-        _fees = Fees(0, 0, 0, 0, 0, 0, 0);
-        _especialNftFees = Fees(0, 0, 0, 0, 0, 0, 0);
+        _setFees(0, 0, 0, 0, 0, 0, 0, false);
+        _setFees(0, 0, 0, 0, 0, 0, 0, true);
     }
     
     function enableEspecialNftFees(bool enable) external onlyOwner{
@@ -786,6 +786,19 @@ contract CryptoFixe is TradeManagedToken {
         uint64 transferFee,
         bool isNftFees
     ) external onlyOwner {
+        _setFees(liqBuyFee, marketingBuyFee, rewardsBuyFee, liqSellFee, marketingSellFee, rewardsSellFee, transferFee, isNftFees);
+    }
+
+    function _setFees(
+        uint64 liqBuyFee,
+        uint64 marketingBuyFee,
+        uint64 rewardsBuyFee,
+        uint64 liqSellFee,
+        uint64 marketingSellFee,
+        uint64 rewardsSellFee,
+        uint64 transferFee,
+        bool isNftFees
+    ) internal {
         require(
             ((liqBuyFee + marketingBuyFee + rewardsBuyFee) <= maxFee ) 
             && ((liqSellFee + marketingSellFee + rewardsSellFee) <= maxFee)
@@ -799,7 +812,7 @@ contract CryptoFixe is TradeManagedToken {
             totalBuyFee = liqBuyFee + marketingBuyFee + rewardsBuyFee;
             totalSellFee = liqSellFee + marketingSellFee + rewardsSellFee;
         }
-        emit feesEvent(liqBuyFee, marketingBuyFee, rewardsBuyFee, liqSellFee, marketingSellFee, rewardsSellFee, transferFee, isNftFees);
+        emit feesChangedEvent(liqBuyFee, marketingBuyFee, rewardsBuyFee, liqSellFee, marketingSellFee, rewardsSellFee, transferFee, isNftFees);
     }
 
     function transferFrom(
@@ -937,15 +950,15 @@ contract CryptoFixe is TradeManagedToken {
 
     function processFeeReserves() external onlyAdmin {
         if(liquidityReserves > 0){
-            super._transfer(address(this), liquidityWallet, liquidityReserves);
+            super._transfer(address(this), liquidityAdress, liquidityReserves);
             liquidityReserves = 0;
         }
         if(marketingReserves > 0){
-            super._transfer(address(this), marketingWallet, marketingReserves);
+            super._transfer(address(this), marketingAdress, marketingReserves);
             marketingReserves = 0;
         }
         if(rewardsReserves > 0){
-            super._transfer(address(this), rewardsWallet, rewardsReserves);
+            super._transfer(address(this), rewardsAdress, rewardsReserves);
             rewardsReserves = 0;
         }
         emit processFeeReservesEvent(liquidityReserves, marketingReserves, rewardsReserves);
