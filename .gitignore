@@ -40,3 +40,4 @@ bin/Token/AccessControl.json
 bin/Token/AccessControl.bin
 bin/Token/AccessControl.abi
 bin/solc-output-compile-all.json
+.vscode/settings.json

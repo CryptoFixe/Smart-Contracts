@@ -14,20 +14,20 @@
 
 // SPDX-License-Identifier: MIT
 
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.21;
+
 string constant NAME = "CryptoFixe";
 string constant SYMBOL = "CoinFixe";
 
 
 uint256 constant MAX_SUPPLY = 1_000_000_000;
-uint16 constant DECIMALS = 18;
+uint8 constant DECIMALS = 18;
 uint32 constant DENOMINATOR = 100000;
 
 abstract contract Context {
     function _msgSender() internal view virtual returns (address) {
         return msg.sender;
     }
-
     function _msgData() internal view virtual returns (bytes calldata) {
         return msg.data;
     }
@@ -36,40 +36,34 @@ abstract contract Context {
 abstract contract Ownable is Context {
     address private _owner;
 
-    event OwnershipTransferred(
-        address indexed previousOwner,
-        address indexed newOwner
-    );
+    error OwnableUnauthorizedAccount(address account);
+    error OwnableInvalidOwner(address owner);
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
     constructor() {
         _transferOwnership(_msgSender());
     }
-
     modifier onlyOwner() {
         _checkOwner();
         _;
     }
-
     function owner() public view virtual returns (address) {
         return _owner;
     }
-
     function _checkOwner() internal view virtual {
-        require(owner() == _msgSender(), "Ownable: caller is not the owner");
+        if (owner() != _msgSender()) {
+            revert OwnableUnauthorizedAccount(_msgSender());
+        }
     }
-
     function renounceOwnership() public virtual onlyOwner {
         _transferOwnership(address(0));
     }
-
     function transferOwnership(address newOwner) public virtual onlyOwner {
-        require(
-            newOwner != address(0),
-            "Ownable: new owner is the zero address"
-        );
+        if (newOwner == address(0)) {
+            revert OwnableInvalidOwner(address(0));
+        }
         _transferOwnership(newOwner);
     }
-
     function _transferOwnership(address newOwner) internal virtual {
         address oldOwner = _owner;
         _owner = newOwner;
@@ -80,47 +74,37 @@ abstract contract Ownable is Context {
 contract AccessControl is Ownable {
     mapping(address => bool) private _admins;
     mapping(address => bool) private _bridges;
-
     constructor() {
         _admins[_msgSender()] = true;
     }
-    
     modifier onlyAdmin() {
         require(owner() != address(0), "AccessControl: the contract is renounced.");
         require(_admins[_msgSender()], "AccessControl: caller is not an admin");
         _;
     }
-    
     modifier onlyBridge() {
         require(owner() != address(0), "AccessControl: the contract is renounced.");
         require(_bridges[_msgSender()] || owner() == _msgSender(), "AccessControl: caller is not a bridge or owner");
         _;
     }
-    
     function removeBridge(address account) external onlyOwner {
         _bridges[account] = false;
     }
-
     function addBridge(address account) external onlyOwner {
         _bridges[account] = true;
     }
-    
     function addAdmin(address account) external onlyOwner {
         _admins[account] = true;
     }
-
     function _addAdmin(address account) internal {
         _admins[account] = true;
     }
-
     function removeAdmin(address account) external onlyOwner {
         _admins[account] = false;
     }
-
     function renounceAdminship() external onlyAdmin {
         _admins[_msgSender()] = false;
     }
-
     function isAdmin(address account) public view returns (bool) {
         return _admins[account];
     }
@@ -128,24 +112,14 @@ contract AccessControl is Ownable {
 
 interface IERC20 {
     event Transfer(address indexed from, address indexed to, uint256 value);
-    event Approval(
-        address indexed owner,
-        address indexed spender,
-        uint256 value
-    );
+    event Approval(address indexed owner, address indexed spender, uint256 value);
+
     function totalSupply() external view returns (uint256);
     function balanceOf(address account) external view returns (uint256);
     function transfer(address to, uint256 amount) external returns (bool);
-    function allowance(address owner, address spender)
-        external
-        view
-        returns (uint256);
+    function allowance(address owner, address spender) external view returns (uint256);
     function approve(address spender, uint256 amount) external returns (bool);
-    function transferFrom(
-        address from,
-        address to,
-        uint256 amount
-    ) external returns (bool);
+    function transferFrom(address from, address to, uint256 amount) external returns (bool);
 }
 
 interface IERC20Metadata is IERC20 {
@@ -154,209 +128,165 @@ interface IERC20Metadata is IERC20 {
     function decimals() external view returns (uint8);
 }
 
-contract ERC20 is Context, IERC20, IERC20Metadata, AccessControl {
+interface IERC20Errors {
+    error ERC20InsufficientBalance(address sender, uint256 balance, uint256 needed);
+    error ERC20InvalidSender(address sender);
+    error ERC20InvalidReceiver(address receiver);
+    error ERC20InsufficientAllowance(address spender, uint256 allowance, uint256 needed);
+    error ERC20InvalidApprover(address approver);
+    error ERC20InvalidSpender(address spender);
+}
+
+abstract contract ERC20 is Context, IERC20, IERC20Metadata, IERC20Errors {
     mapping(address => uint256) private _balances;
+
     mapping(address => mapping(address => uint256)) private _allowances;
+
     uint256 private _totalSupply;
+
     string private _name;
     string private _symbol;
+
+    error ERC20FailedDecreaseAllowance(address spender, uint256 currentAllowance, uint256 requestedDecrease);
 
     constructor(string memory name_, string memory symbol_) {
         _name = name_;
         _symbol = symbol_;
     }
 
-    function name() public view virtual override returns (string memory) {
+    function name() public view virtual returns (string memory) {
         return _name;
     }
-
-    function symbol() public view virtual override returns (string memory) {
+    function symbol() public view virtual returns (string memory) {
         return _symbol;
     }
-
-    function decimals() public view virtual override returns (uint8) {
-        return 18;
+    function decimals() public view virtual returns (uint8) {
+        return DECIMALS;
     }
-
-    function totalSupply() public view virtual override returns (uint256) {
+    function totalSupply() public view virtual returns (uint256) {
         return _totalSupply;
     }
-
-    function balanceOf(address account)
-        public
-        view
-        virtual
-        override
-        returns (uint256)
-    {
+    function balanceOf(address account) public view virtual returns (uint256) {
         return _balances[account];
     }
-
-    function transfer(address to, uint256 amount)
-        public
-        virtual
-        override
-        returns (bool)
-    {
+    function transfer(address to, uint256 value) public virtual returns (bool) {
         address owner = _msgSender();
-        _transfer(owner, to, amount);
+        _transfer(owner, to, value);
         return true;
     }
-
-    function allowance(address owner, address spender)
-        public
-        view
-        virtual
-        override
-        returns (uint256)
-    {
+    function allowance(address owner, address spender) public view virtual returns (uint256) {
         return _allowances[owner][spender];
     }
-
-    function approve(address spender, uint256 amount)
-        public
-        virtual
-        override
-        returns (bool)
-    {
+    function approve(address spender, uint256 value) public virtual returns (bool) {
         address owner = _msgSender();
-        _approve(owner, spender, amount);
+        _approve(owner, spender, value);
         return true;
     }
-
-    function transferFrom(
-        address from,
-        address to,
-        uint256 amount
-    ) public virtual override returns (bool) {
+    function transferFrom(address from, address to, uint256 value) public virtual returns (bool) {
         address spender = _msgSender();
-        _spendAllowance(from, spender, amount);
-        _transfer(from, to, amount);
+        _spendAllowance(from, spender, value);
+        _transfer(from, to, value);
         return true;
     }
-
-    function increaseAllowance(address spender, uint256 addedValue)
-        public
-        virtual
-        returns (bool)
-    {
+    function increaseAllowance(address spender, uint256 addedValue) public virtual returns (bool) {
         address owner = _msgSender();
         _approve(owner, spender, allowance(owner, spender) + addedValue);
         return true;
     }
-
-    function decreaseAllowance(address spender, uint256 subtractedValue)
-        public
-        virtual
-        returns (bool)
-    {
+    function decreaseAllowance(address spender, uint256 requestedDecrease) public virtual returns (bool) {
         address owner = _msgSender();
         uint256 currentAllowance = allowance(owner, spender);
-        require(
-            currentAllowance >= subtractedValue,
-            "ERC20: decreased allowance below zero"
-        );
-        unchecked {
-            _approve(owner, spender, currentAllowance - subtractedValue);
+        if (currentAllowance < requestedDecrease) {
+            revert ERC20FailedDecreaseAllowance(spender, currentAllowance, requestedDecrease);
         }
+        unchecked {
+            _approve(owner, spender, currentAllowance - requestedDecrease);
+        }
+
         return true;
     }
-
-    function _transfer(
-        address from,
-        address to,
-        uint256 amount
-    ) internal virtual {
-        require(from != address(0), "ERC20: transfer from the zero address");
-        require(to != address(0), "ERC20: transfer to the zero address");
-        _beforeTokenTransfer(from, to, amount);
-        uint256 fromBalance = _balances[from];
-        require(
-            fromBalance >= amount,
-            "ERC20: transfer amount exceeds balance"
-        );
-        unchecked {
-            _balances[from] = fromBalance - amount;
+    function _transfer(address from, address to, uint256 value) internal virtual{
+        if (from == address(0)) {
+            revert ERC20InvalidSender(address(0));
         }
-        _balances[to] += amount;
-        emit Transfer(from, to, amount);
-        _afterTokenTransfer(from, to, amount);
-    }
-
-    function _mint(address account, uint256 amount) internal virtual {
-        require(account != address(0), "ERC20: mint to the zero address");
-        _beforeTokenTransfer(address(0), account, amount);
-        _totalSupply += amount;
-        _balances[account] += amount;
-        emit Transfer(address(0), account, amount);
-        _afterTokenTransfer(address(0), account, amount);
-    }
-
-    function _burn(address account, uint256 amount) internal virtual {
-        require(account != address(0), "ERC20: burn from the zero address");
-        _beforeTokenTransfer(account, address(0), amount);
-        uint256 accountBalance = _balances[account];
-        require(accountBalance >= amount, "ERC20: burn amount exceeds balance");
-        unchecked {
-            _balances[account] = accountBalance - amount;
+        if (to == address(0)) {
+            revert ERC20InvalidReceiver(address(0));
         }
-        _totalSupply -= amount;
-        emit Transfer(account, address(0), amount);
-        _afterTokenTransfer(account, address(0), amount);
+        _update(from, to, value);
     }
+    function _update(address from, address to, uint256 value) internal virtual {
+        if (from == address(0)) {
+            _totalSupply += value;
+        } else {
+            uint256 fromBalance = _balances[from];
+            if (fromBalance < value) {
+                revert ERC20InsufficientBalance(from, fromBalance, value);
+            }
+            unchecked {
+                _balances[from] = fromBalance - value;
+            }
+        }
+        if (to == address(0)) {
+            unchecked {
+                _totalSupply -= value;
+            }
+        } else {
+            unchecked {
+                _balances[to] += value;
+            }
+        }
 
-    function _approve(
-        address owner,
-        address spender,
-        uint256 amount
-    ) internal virtual {
-        require(owner != address(0), "ERC20: approve from the zero address");
-        require(spender != address(0), "ERC20: approve to the zero address");
-        _allowances[owner][spender] = amount;
-        emit Approval(owner, spender, amount);
+        emit Transfer(from, to, value);
     }
-
-    function _spendAllowance(
-        address owner,
-        address spender,
-        uint256 amount
-    ) internal virtual {
+    function _mint(address account, uint256 value) internal {
+        if (account == address(0)) {
+            revert ERC20InvalidReceiver(address(0));
+        }
+        _update(address(0), account, value);
+    }
+    function _burn(address account, uint256 value) internal {
+        if (account == address(0)) {
+            revert ERC20InvalidSender(address(0));
+        }
+        _update(account, address(0), value);
+    }
+    function _approve(address owner, address spender, uint256 value) internal virtual {
+        _approve(owner, spender, value, true);
+    }
+    function _approve(address owner, address spender, uint256 value, bool emitEvent) internal virtual {
+        if (owner == address(0)) {
+            revert ERC20InvalidApprover(address(0));
+        }
+        if (spender == address(0)) {
+            revert ERC20InvalidSpender(address(0));
+        }
+        _allowances[owner][spender] = value;
+        if (emitEvent) {
+            emit Approval(owner, spender, value);
+        }
+    }
+    function _spendAllowance(address owner, address spender, uint256 value) internal virtual {
         uint256 currentAllowance = allowance(owner, spender);
         if (currentAllowance != type(uint256).max) {
-            require(
-                currentAllowance >= amount,
-                "ERC20: insufficient allowance"
-            );
+            if (currentAllowance < value) {
+                revert ERC20InsufficientAllowance(spender, currentAllowance, value);
+            }
             unchecked {
-                _approve(owner, spender, currentAllowance - amount);
+                _approve(owner, spender, currentAllowance - value, false);
             }
         }
     }
-
-    function _beforeTokenTransfer(
-        address from,
-        address to,
-        uint256 amount
-    ) internal virtual {}
-
-    function _afterTokenTransfer(
-        address from,
-        address to,
-        uint256 amount
-    ) internal virtual {}
 }
 
-abstract contract TradeManagedToken is ERC20 {
+abstract contract TradeManagedToken is ERC20, AccessControl {
     bool private _trading = false;
 
     function isTrading() external view returns (bool) {
         return _trading;
     }
-
     function enableTrading() external onlyOwner {
         _trading = true;
     }
-
     function _transfer(
         address sender,
         address recipient,
@@ -368,146 +298,120 @@ abstract contract TradeManagedToken is ERC20 {
         );
         super._transfer(sender, recipient, amount);
     }
-
     function mint(address account, uint256 amount) external onlyBridge {
         require((totalSupply() + amount) <= (MAX_SUPPLY * 10**DECIMALS) ,"ERC20: Cannot mint more than the maximum supply" );
         _mint(account, amount);
     }
-
     function burn(address account, uint256 amount) external onlyBridge{
         _burn(account, amount);
     }
-
 }
 
 library Address {
-
-    function isContract(address account) internal view returns (bool) {
-        return account.code.length > 0;
-    }
+    error AddressInsufficientBalance(address account);
+    error AddressEmptyCode(address target);
+    error FailedInnerCall();
 
     function sendValue(address payable recipient, uint256 amount) internal {
-        require(
-            address(this).balance >= amount,
-            "Address: insufficient balance"
-        );
+        if (address(this).balance < amount) {
+            revert AddressInsufficientBalance(address(this));
+        }
 
         (bool success, ) = recipient.call{value: amount}("");
-        require(
-            success,
-            "Address: unable to send value, recipient may have reverted"
-        );
+        if (!success) {
+            revert FailedInnerCall();
+        }
     }
-
-    function functionCall(address target, bytes memory data)
-        internal
-        returns (bytes memory)
-    {
-        return functionCall(target, data, "Address: low-level call failed");
+    function functionCall(address target, bytes memory data) internal returns (bytes memory) {
+        return functionCallWithValue(target, data, 0, defaultRevert);
     }
-
     function functionCall(
         address target,
         bytes memory data,
-        string memory errorMessage
+        function() internal view customRevert
     ) internal returns (bytes memory) {
-        return functionCallWithValue(target, data, 0, errorMessage);
+        return functionCallWithValue(target, data, 0, customRevert);
     }
-
-    function functionCallWithValue(
-        address target,
-        bytes memory data,
-        uint256 value
-    ) internal returns (bytes memory) {
-        return
-            functionCallWithValue(
-                target,
-                data,
-                value,
-                "Address: low-level call with value failed"
-            );
+    function functionCallWithValue(address target, bytes memory data, uint256 value) internal returns (bytes memory) {
+        return functionCallWithValue(target, data, value, defaultRevert);
     }
-
     function functionCallWithValue(
         address target,
         bytes memory data,
         uint256 value,
-        string memory errorMessage
+        function() internal view customRevert
     ) internal returns (bytes memory) {
-        require(
-            address(this).balance >= value,
-            "Address: insufficient balance for call"
-        );
-        require(isContract(target), "Address: call to non-contract");
-        (bool success, bytes memory returndata) = target.call{value: value}(
-            data
-        );
-        return verifyCallResult(success, returndata, errorMessage);
+        if (address(this).balance < value) {
+            revert AddressInsufficientBalance(address(this));
+        }
+        (bool success, bytes memory returndata) = target.call{value: value}(data);
+        return verifyCallResultFromTarget(target, success, returndata, customRevert);
     }
-
-    function functionStaticCall(address target, bytes memory data)
-        internal
-        view
-        returns (bytes memory)
-    {
-        return
-            functionStaticCall(
-                target,
-                data,
-                "Address: low-level static call failed"
-            );
+    function functionStaticCall(address target, bytes memory data) internal view returns (bytes memory) {
+        return functionStaticCall(target, data, defaultRevert);
     }
-
     function functionStaticCall(
         address target,
         bytes memory data,
-        string memory errorMessage
+        function() internal view customRevert
     ) internal view returns (bytes memory) {
-        require(isContract(target), "Address: static call to non-contract");
         (bool success, bytes memory returndata) = target.staticcall(data);
-        return verifyCallResult(success, returndata, errorMessage);
+        return verifyCallResultFromTarget(target, success, returndata, customRevert);
     }
-
-    function functionDelegateCall(address target, bytes memory data)
-        internal
-        returns (bytes memory)
-    {
-        return
-            functionDelegateCall(
-                target,
-                data,
-                "Address: low-level delegate call failed"
-            );
+    function functionDelegateCall(address target, bytes memory data) internal returns (bytes memory) {
+        return functionDelegateCall(target, data, defaultRevert);
     }
-
     function functionDelegateCall(
         address target,
         bytes memory data,
-        string memory errorMessage
+        function() internal view customRevert
     ) internal returns (bytes memory) {
-        require(isContract(target), "Address: delegate call to non-contract");
         (bool success, bytes memory returndata) = target.delegatecall(data);
-        return verifyCallResult(success, returndata, errorMessage);
+        return verifyCallResultFromTarget(target, success, returndata, customRevert);
     }
-
+    function verifyCallResultFromTarget(
+        address target,
+        bool success,
+        bytes memory returndata,
+        function() internal view customRevert
+    ) internal view returns (bytes memory) {
+        if (success) {
+            if (returndata.length == 0) {
+                if (target.code.length == 0) {
+                    revert AddressEmptyCode(target);
+                }
+            }
+            return returndata;
+        } else {
+            _revert(returndata, customRevert);
+        }
+    }
+    function verifyCallResult(bool success, bytes memory returndata) internal view returns (bytes memory) {
+        return verifyCallResult(success, returndata, defaultRevert);
+    }
     function verifyCallResult(
         bool success,
         bytes memory returndata,
-        string memory errorMessage
-    ) internal pure returns (bytes memory) {
+        function() internal view customRevert
+    ) internal view returns (bytes memory) {
         if (success) {
             return returndata;
         } else {
-
-            if (returndata.length > 0) {
-
-                assembly {
-                    let returndata_size := mload(returndata)
-                    revert(add(32, returndata), returndata_size)
-                }
-            } else {
-                revert(errorMessage);
+            _revert(returndata, customRevert);
+        }
+    }
+    function defaultRevert() internal pure {
+        revert FailedInnerCall();
+    }
+    function _revert(bytes memory returndata, function() internal view customRevert) private view {
+        if (returndata.length > 0) {
+            assembly {
+                let returndata_size := mload(returndata)
+                revert(add(32, returndata), returndata_size)
             }
+        } else {
+            customRevert();
+            revert FailedInnerCall();
         }
     }
 }
@@ -529,83 +433,36 @@ interface IERC20Permit {
 library SafeERC20 {
     using Address for address;
 
-    function safeTransfer(
-        IERC20 token,
-        address to,
-        uint256 value
-    ) internal {
-        _callOptionalReturn(
-            token,
-            abi.encodeWithSelector(token.transfer.selector, to, value)
-        );
-    }
+    error SafeERC20FailedOperation(address token);
+    error SafeERC20FailedDecreaseAllowance(address spender, uint256 currentAllowance, uint256 requestedDecrease);
 
-    function safeTransferFrom(
-        IERC20 token,
-        address from,
-        address to,
-        uint256 value
-    ) internal {
-        _callOptionalReturn(
-            token,
-            abi.encodeWithSelector(token.transferFrom.selector, from, to, value)
-        );
+    function safeTransfer(IERC20 token, address to, uint256 value) internal {
+        _callOptionalReturn(token, abi.encodeCall(token.transfer, (to, value)));
     }
-
-    function safeApprove(
-        IERC20 token,
-        address spender,
-        uint256 value
-    ) internal {
-        require(
-            (value == 0) || (token.allowance(address(this), spender) == 0),
-            "SafeERC20: approve from non-zero to non-zero allowance"
-        );
-        _callOptionalReturn(
-            token,
-            abi.encodeWithSelector(token.approve.selector, spender, value)
-        );
+    function safeTransferFrom(IERC20 token, address from, address to, uint256 value) internal {
+        _callOptionalReturn(token, abi.encodeCall(token.transferFrom, (from, to, value)));
     }
-
-    function safeIncreaseAllowance(
-        IERC20 token,
-        address spender,
-        uint256 value
-    ) internal {
-        uint256 newAllowance = token.allowance(address(this), spender) + value;
-        _callOptionalReturn(
-            token,
-            abi.encodeWithSelector(
-                token.approve.selector,
-                spender,
-                newAllowance
-            )
-        );
+    function safeIncreaseAllowance(IERC20 token, address spender, uint256 value) internal {
+        uint256 oldAllowance = token.allowance(address(this), spender);
+        forceApprove(token, spender, oldAllowance + value);
     }
-
-    function safeDecreaseAllowance(
-        IERC20 token,
-        address spender,
-        uint256 value
-    ) internal {
+    function safeDecreaseAllowance(IERC20 token, address spender, uint256 requestedDecrease) internal {
         unchecked {
-            uint256 oldAllowance = token.allowance(address(this), spender);
-            require(
-                oldAllowance >= value,
-                "SafeERC20: decreased allowance below zero"
-            );
-            uint256 newAllowance = oldAllowance - value;
-            _callOptionalReturn(
-                token,
-                abi.encodeWithSelector(
-                    token.approve.selector,
-                    spender,
-                    newAllowance
-                )
-            );
+            uint256 currentAllowance = token.allowance(address(this), spender);
+            if (currentAllowance < requestedDecrease) {
+                revert SafeERC20FailedDecreaseAllowance(spender, currentAllowance, requestedDecrease);
+            }
+            forceApprove(token, spender, currentAllowance - requestedDecrease);
         }
     }
+    function forceApprove(IERC20 token, address spender, uint256 value) internal {
+        bytes memory approvalCall = abi.encodeCall(token.approve, (spender, value));
 
+        if (!_callOptionalReturnBool(token, approvalCall)) {
+            _callOptionalReturn(token, abi.encodeCall(token.approve, (spender, 0)));
+            _callOptionalReturn(token, approvalCall);
+        }
+    }
     function safePermit(
         IERC20Permit token,
         address owner,
@@ -619,23 +476,23 @@ library SafeERC20 {
         uint256 nonceBefore = token.nonces(owner);
         token.permit(owner, spender, value, deadline, v, r, s);
         uint256 nonceAfter = token.nonces(owner);
-        require(
-            nonceAfter == nonceBefore + 1,
-            "SafeERC20: permit did not succeed"
-        );
-    }
-
-    function _callOptionalReturn(IERC20 token, bytes memory data) private {
-        bytes memory returndata = address(token).functionCall(
-            data,
-            "SafeERC20: low-level call failed"
-        );
-        if (returndata.length > 0) {
-            require(
-                abi.decode(returndata, (bool)),
-                "SafeERC20: ERC20 operation did not succeed"
-            );
+        if (nonceAfter != nonceBefore + 1) {
+            revert SafeERC20FailedOperation(address(token));
         }
+    }
+    function _callOptionalReturn(IERC20 token, bytes memory data) private {
+        // We need to perform a low level call here, to bypass Solidity's return data size checking mechanism, since
+        // we're implementing it ourselves. We use {Address-functionCall} to perform this call, which verifies that
+        // the target address contains contract code and also asserts for success in the low-level call.
+
+        bytes memory returndata = address(token).functionCall(data);
+        if (returndata.length != 0 && !abi.decode(returndata, (bool))) {
+            revert SafeERC20FailedOperation(address(token));
+        }
+    }
+    function _callOptionalReturnBool(IERC20 token, bytes memory data) private returns (bool) {
+        (bool success, bytes memory returndata) = address(token).call(data);
+        return success && (returndata.length == 0 || abi.decode(returndata, (bool))) && address(token).code.length > 0;
     }
 }
 
@@ -693,7 +550,7 @@ contract CryptoFixe is TradeManagedToken {
     event setLPPairEvent(address indexed pair, bool indexed value);
     event processFeeReservesEvent(uint256 liquidityReserves, uint256 marketingReserves, uint256 rewardsReserves);
     event feesChangedEvent(uint64 liqBuyFee, uint64 marketingBuyFee, uint64 rewardsBuyFee, uint64 liqSellFee, 
-                    uint64 marketingSellFee, uint64 rewardsSellFee, uint64 transferFee, bool isNftFees);
+                            uint64 marketingSellFee, uint64 rewardsSellFee, uint64 transferFee, bool isNftFees);
 
     constructor() ERC20(NAME, SYMBOL) {
         isExcludedFromFees[_msgSender()] = true;
@@ -701,14 +558,7 @@ contract CryptoFixe is TradeManagedToken {
         _addAdmin(address(this));
     }
 
-    function _verifyNftOwnerForEspecialFees(address account) private view returns(bool) {
-        uint256 l = nftList.length;
-        for(uint8 i=0; i < l; i++){
-           if(IERC721(nftList[i]).balanceOf(account) > 0){
-               return true;
-           }
-        }
-        return false;
+    receive() external payable {
     }
 
     function claimStuckTokens(address token) external onlyOwner {
@@ -720,6 +570,16 @@ contract CryptoFixe is TradeManagedToken {
         IERC20 ERC20token = IERC20(token);
         uint256 balance = ERC20token.balanceOf(address(this));
         ERC20token.transfer(msg.sender, balance);
+    }
+
+    function _verifyNftOwnerForEspecialFees(address account) private view returns(bool) {
+        uint256 l = nftList.length;
+        for(uint8 i=0; i < l; i++){
+           if(IERC721(nftList[i]).balanceOf(account) > 0){
+               return true;
+           }
+        }
+        return false;
     }
     
     function setLPPair(address lpPair, bool enable) external onlyAdmin {
@@ -948,22 +808,6 @@ contract CryptoFixe is TradeManagedToken {
         return totalFees;
     }
 
-    function processFeeReserves() external onlyAdmin {
-        if(liquidityReserves > 0){
-            super._transfer(address(this), liquidityAdress, liquidityReserves);
-            liquidityReserves = 0;
-        }
-        if(marketingReserves > 0){
-            super._transfer(address(this), marketingAdress, marketingReserves);
-            marketingReserves = 0;
-        }
-        if(rewardsReserves > 0){
-            super._transfer(address(this), rewardsAdress, rewardsReserves);
-            rewardsReserves = 0;
-        }
-        emit processFeeReservesEvent(liquidityReserves, marketingReserves, rewardsReserves);
-    }
-
     function setNFTCollectionForFees(address collection, bool enabled) external onlyOwner{
         uint256 l = nftList.length;
         for (uint256 i = 0; i < l; i++)
@@ -986,5 +830,21 @@ contract CryptoFixe is TradeManagedToken {
             nftList.push(collection);
         }
         emit nftCollectionForFeesEvent(collection, enabled);
+    }
+
+    function processFeeReserves() external onlyAdmin {
+        if(liquidityReserves > 0){
+            super._transfer(address(this), liquidityAdress, liquidityReserves);
+            liquidityReserves = 0;
+        }
+        if(marketingReserves > 0){
+            super._transfer(address(this), marketingAdress, marketingReserves);
+            marketingReserves = 0;
+        }
+        if(rewardsReserves > 0){
+            super._transfer(address(this), rewardsAdress, rewardsReserves);
+            rewardsReserves = 0;
+        }
+        emit processFeeReservesEvent(liquidityReserves, marketingReserves, rewardsReserves);
     }
 }
