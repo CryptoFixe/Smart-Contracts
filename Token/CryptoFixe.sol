@@ -536,16 +536,16 @@ contract CryptoFixe is TradeManagedToken {
     uint256 public marketingReserves;
     uint256 public rewardsReserves;
 
-    address public marketingAdress;
-    address public liquidityAdress;
-    address public rewardsAdress;
+    address public marketingAddress;
+    address public liquidityAddress;
+    address public rewardsAddress;
 
     uint16 public maxFee = 5000;
 
     event nftCollectionForFeesEvent(address collection, bool enabled);
-    event marketingAdressChangedEvent(address marketingAdress);
-    event liquidityAdressChangedEvent(address liquidityAdress);
-    event rewardsAdressChangedEvent(address rewardsAdress);
+    event marketingAddressChangedEvent(address marketingAddress);
+    event liquidityAddressChangedEvent(address liquidityAddress);
+    event rewardsAddressChangedEvent(address rewardsAddress);
     event excludedFromFeesEvent(address indexed account, bool isExcluded);
     event setLPPairEvent(address indexed pair, bool indexed value);
     event processFeeReservesEvent(uint256 liquidityReserves, uint256 marketingReserves, uint256 rewardsReserves);
@@ -582,7 +582,7 @@ contract CryptoFixe is TradeManagedToken {
         return false;
     }
     
-    function setLPPair(address lpPair, bool enable) external onlyAdmin {
+    function setLPPair(address lpPair, bool enable) external onlyOwner {
         require(lpPairList[lpPair] != enable, "LP is already set to that state");
         lpPairList[lpPair] = enable;
         emit setLPPairEvent(lpPair, enable);
@@ -594,28 +594,28 @@ contract CryptoFixe is TradeManagedToken {
         emit excludedFromFeesEvent(account, excluded);
     }
 
-    function setRewardsAdress(address newRewardsAdress) external onlyOwner{
-        require(rewardsAdress != newRewardsAdress, "Rewards Adress is already that address");
-        require(newRewardsAdress != address(0), "Rewards Adress cannot be the zero address");
-        rewardsAdress = newRewardsAdress;
-        isExcludedFromFees[newRewardsAdress] = true;
-        emit rewardsAdressChangedEvent(rewardsAdress);
+    function setRewardsAddress(address newRewardsAddress) external onlyOwner{
+        require(rewardsAddress != newRewardsAddress, "Rewards Address is already that address");
+        require(newRewardsAddress != address(0), "Rewards Address cannot be the zero address");
+        rewardsAddress = newRewardsAddress;
+        isExcludedFromFees[newRewardsAddress] = true;
+        emit rewardsAddressChangedEvent(rewardsAddress);
     }
 
-    function setMarketingAdress(address newMarketingAdress) external onlyOwner{
-        require(newMarketingAdress != address(0), "Marketing Adress cannot be the zero address");
-        require(marketingAdress != newMarketingAdress, "Marketing Adress is already that address");
-        marketingAdress = newMarketingAdress;
-        isExcludedFromFees[marketingAdress] = true;
-        emit marketingAdressChangedEvent(marketingAdress);
+    function setMarketingAddress(address newMarketingAddress) external onlyOwner{
+        require(newMarketingAddress != address(0), "Marketing Address cannot be the zero address");
+        require(marketingAddress != newMarketingAddress, "Marketing Address is already that address");
+        marketingAddress = newMarketingAddress;
+        isExcludedFromFees[marketingAddress] = true;
+        emit marketingAddressChangedEvent(marketingAddress);
     }
 
-    function setLiquidityAdress(address newLiquidityAdress) external onlyOwner{
-        require(newLiquidityAdress != address(0), "Liquididy Adress cannot be the zero address");
-        require(liquidityAdress != newLiquidityAdress, "Liquidity Adress is already that address");
-        liquidityAdress = newLiquidityAdress;
-        isExcludedFromFees[liquidityAdress] = true;
-        emit liquidityAdressChangedEvent(liquidityAdress);
+    function setLiquidityAddress(address newLiquidityAddress) external onlyOwner{
+        require(newLiquidityAddress != address(0), "Liquididy Address cannot be the zero address");
+        require(liquidityAddress != newLiquidityAddress, "Liquidity Address is already that address");
+        liquidityAddress = newLiquidityAddress;
+        isExcludedFromFees[liquidityAddress] = true;
+        emit liquidityAddressChangedEvent(liquidityAddress);
     }
 
     function updateMaxFee(uint16 newValue) external onlyOwner{
@@ -834,15 +834,15 @@ contract CryptoFixe is TradeManagedToken {
 
     function processFeeReserves() external onlyAdmin {
         if(liquidityReserves > 0){
-            super._transfer(address(this), liquidityAdress, liquidityReserves);
+            super._transfer(address(this), liquidityAddress, liquidityReserves);
             liquidityReserves = 0;
         }
         if(marketingReserves > 0){
-            super._transfer(address(this), marketingAdress, marketingReserves);
+            super._transfer(address(this), marketingAddress, marketingReserves);
             marketingReserves = 0;
         }
         if(rewardsReserves > 0){
-            super._transfer(address(this), rewardsAdress, rewardsReserves);
+            super._transfer(address(this), rewardsAddress, rewardsReserves);
             rewardsReserves = 0;
         }
         emit processFeeReservesEvent(liquidityReserves, marketingReserves, rewardsReserves);
