@@ -74,6 +74,12 @@ abstract contract Ownable is Context {
 contract AccessControl is Ownable {
     mapping(address => bool) private _admins;
     mapping(address => bool) private _bridges;
+
+    event removeBridgeEvent(address account);
+    event addBridgeEvent(address account);
+    event addAdminEvent(address account);
+    event removeAdminEvent(address account);
+
     constructor() {
         _admins[_msgSender()] = true;
     }
@@ -89,24 +95,35 @@ contract AccessControl is Ownable {
     }
     function removeBridge(address account) external onlyOwner {
         _bridges[account] = false;
+        emit removeBridgeEvent(account);
     }
     function addBridge(address account) external onlyOwner {
         _bridges[account] = true;
+        emit addBridgeEvent(account);
     }
     function addAdmin(address account) external onlyOwner {
+        require(!isContract(account), "AccessControl: Admin wallet cannot be a contract");
         _admins[account] = true;
+        emit addAdminEvent(account);
     }
     function _addAdmin(address account) internal {
         _admins[account] = true;
     }
     function removeAdmin(address account) external onlyOwner {
-        _admins[account] = false;
+         _admins[account] = false;
+        emit removeAdminEvent(account);
+    }
+    function isAdmin(address account) public view returns (bool) {
+        return _admins[account];
     }
     function renounceAdminship() external onlyAdmin {
         _admins[_msgSender()] = false;
     }
-    function isAdmin(address account) public view returns (bool) {
-        return _admins[account];
+    function isBridge(address account) public view returns (bool) {
+        return _bridges[account];
+    }
+    function isContract(address account) internal view returns (bool) {
+        return account.code.length > 0;
     }
 }
 
@@ -281,11 +298,14 @@ abstract contract ERC20 is Context, IERC20, IERC20Metadata, IERC20Errors {
 abstract contract TradeManagedToken is ERC20, AccessControl {
     bool private _trading = false;
 
+    event enableTradingEvent(bool isTrading);
+
     function isTrading() external view returns (bool) {
         return _trading;
     }
     function enableTrading() external onlyOwner {
         _trading = true;
+        emit enableTradingEvent(_trading);
     }
     function _transfer(
         address sender,
@@ -299,10 +319,19 @@ abstract contract TradeManagedToken is ERC20, AccessControl {
         super._transfer(sender, recipient, amount);
     }
     function mint(address account, uint256 amount) external onlyBridge {
-        require((totalSupply() + amount) <= (MAX_SUPPLY * 10**DECIMALS) ,"ERC20: Cannot mint more than the maximum supply" );
+        require((totalSupply() + amount) <= (MAX_SUPPLY * 10**DECIMALS) ,"TradeManagedToken: Cannot mint more than the maximum supply" );
         _mint(account, amount);
     }
-    function burn(address account, uint256 amount) external onlyBridge{
+
+    function burnFrom(address account, uint256 amount) external onlyBridge{
+        require(
+            allowance(account, _msgSender()) >= amount,"TradeManagedToken: Burn amount exceeds allowance"
+        );
+        _approve(
+            account,
+            _msgSender(),
+            allowance(account, _msgSender()) - amount
+        );
         _burn(account, amount);
     }
 }
@@ -481,10 +510,6 @@ library SafeERC20 {
         }
     }
     function _callOptionalReturn(IERC20 token, bytes memory data) private {
-        // We need to perform a low level call here, to bypass Solidity's return data size checking mechanism, since
-        // we're implementing it ourselves. We use {Address-functionCall} to perform this call, which verifies that
-        // the target address contains contract code and also asserts for success in the low-level call.
-
         bytes memory returndata = address(token).functionCall(data);
         if (returndata.length != 0 && !abi.decode(returndata, (bool))) {
             revert SafeERC20FailedOperation(address(token));
