@@ -19,8 +19,6 @@ pragma solidity ^0.8.21;
 string constant NAME = "CryptoFixe";
 string constant SYMBOL = "CoinFixe";
 
-
-uint256 constant MAX_SUPPLY = 1_000_000_000;
 uint8 constant DECIMALS = 18;
 uint32 constant DENOMINATOR = 100000;
 
@@ -90,7 +88,7 @@ contract AccessControl is Ownable {
     }
     modifier onlyBridge() {
         require(owner() != address(0), "AccessControl: the contract is renounced.");
-        require(_bridges[_msgSender()] || owner() == _msgSender(), "AccessControl: caller is not a bridge or owner");
+        require(_bridges[_msgSender()], "AccessControl: caller is not a bridge");
         _;
     }
     function removeBridge(address account) external onlyOwner {
@@ -102,7 +100,6 @@ contract AccessControl is Ownable {
         emit addBridgeEvent(account);
     }
     function addAdmin(address account) external onlyOwner {
-        require(!isContract(account), "AccessControl: Admin wallet cannot be a contract");
         _admins[account] = true;
         emit addAdminEvent(account);
     }
@@ -110,7 +107,7 @@ contract AccessControl is Ownable {
         _admins[account] = true;
     }
     function removeAdmin(address account) external onlyOwner {
-         _admins[account] = false;
+        _admins[account] = false;
         emit removeAdminEvent(account);
     }
     function isAdmin(address account) public view returns (bool) {
@@ -292,47 +289,6 @@ abstract contract ERC20 is Context, IERC20, IERC20Metadata, IERC20Errors {
                 _approve(owner, spender, currentAllowance - value, false);
             }
         }
-    }
-}
-
-abstract contract TradeManagedToken is ERC20, AccessControl {
-    bool private _trading = false;
-
-    event enableTradingEvent(bool isTrading);
-
-    function isTrading() external view returns (bool) {
-        return _trading;
-    }
-    function enableTrading() external onlyOwner {
-        _trading = true;
-        emit enableTradingEvent(_trading);
-    }
-    function _transfer(
-        address sender,
-        address recipient,
-        uint256 amount
-    ) internal virtual override {
-        require(
-            _trading || isAdmin(sender),
-            "TradeManagedToken: CryptoFixe has not been released."
-        );
-        super._transfer(sender, recipient, amount);
-    }
-    function mint(address account, uint256 amount) external onlyBridge {
-        require((totalSupply() + amount) <= (MAX_SUPPLY * 10**DECIMALS) ,"TradeManagedToken: Cannot mint more than the maximum supply" );
-        _mint(account, amount);
-    }
-
-    function burnFrom(address account, uint256 amount) external onlyBridge{
-        require(
-            allowance(account, _msgSender()) >= amount,"TradeManagedToken: Burn amount exceeds allowance"
-        );
-        _approve(
-            account,
-            _msgSender(),
-            allowance(account, _msgSender()) - amount
-        );
-        _burn(account, amount);
     }
 }
 
@@ -530,6 +486,57 @@ interface IERC721 is IERC165 {
     function ownerOf(uint256 tokenId) external view returns (address owner);
 }
 
+abstract contract TradeManagedToken is ERC20, AccessControl {
+    bool private _trading = false;
+    bool private _isBridgebled = false;
+    uint256 public maxSupply = 1_000_000_000;
+
+    event enableTradingEvent(bool isTrading);
+    event enableBridgeEvent(bool enable);
+    event reduceMaxSupplyGlobalEvent(uint256 amount);
+    event removeBridgeTokensEvent(address account, uint256 amount);
+
+    function isTrading() external view returns (bool) {
+        return _trading;
+    }
+    function isBridgebled() external view returns (bool) {
+        return _isBridgebled;
+    }
+    function enableTrading() external onlyOwner {
+        _trading = true;
+        emit enableTradingEvent(_trading);
+    }
+    function enableBridge(bool enable) external onlyOwner {
+        _isBridgebled = enable;
+        emit enableBridgeEvent(enable);
+    }
+    function _transfer(
+        address sender,
+        address recipient,
+        uint256 amount
+    ) internal virtual override {
+        require(
+            _trading || isAdmin(sender),
+            "TradeManagedToken: CryptoFixe has not been released or address is not a Launchpad."
+        );
+        super._transfer(sender, recipient, amount);
+    }
+    function mint(address account, uint256 amount) external onlyBridge {
+        require(_isBridgebled, "TradeManagedToken: Bridge is not enable." );
+        require((totalSupply() + amount) <= maxSupply * 10**DECIMALS ,"TradeManagedToken: Cannot mint more than the maximum supply" );
+        _mint(account, amount);
+    }
+    function burn(uint256 amount) external {
+        require(_msgSender().balance >= amount, "TradeManagedToken: Burn amount exceeds balance");
+        _burn(_msgSender(), amount);
+    }
+    function reduceMaxSupplyGlobal(uint256 amount) external onlyBridge {
+        require(_isBridgebled, "TradeManagedToken: Bridge is not enable." );
+        maxSupply = maxSupply - amount;
+        emit reduceMaxSupplyGlobalEvent(amount);
+    }
+}
+
 struct Fees {
     uint64 liquidityBuyFee;
     uint64 marketingBuyFee;
@@ -543,23 +550,22 @@ struct Fees {
 contract CryptoFixe is TradeManagedToken {
     using SafeERC20 for IERC20;
 
-    Fees private _fees = Fees(0,0,0,0,0,0,0);
-    Fees private _especialNftFees = Fees(0,0,0,0,0,0,0);
+    Fees public _fees = Fees(0,0,0,0,0,0,0);
+    Fees public _especialNftFees = Fees(0,0,0,0,0,0,0);
 
-    uint256 public totalBuyFee = 0;
-    uint256 public totalSellFee = 0;
-    uint256 public totalEspecialNftBuyFee = 0;
-    uint256 public totalEspecialNftSellFee = 0;
+    uint256 private totalBuyFee = 0;
+    uint256 private totalSellFee = 0;
+    uint256 private totalEspecialNftBuyFee = 0;
+    uint256 private totalEspecialNftSellFee = 0;
+    uint256 private transferFee = 0;
+    uint256 private transferEspecialNftFee = 0;
+
     bool public especialNftFeesEnable = true;
     
     address[] public nftList;
 
     mapping(address => bool) public lpPairList;
     mapping(address => bool) public isExcludedFromFees;
-
-    uint256 public liquidityReserves;
-    uint256 public marketingReserves;
-    uint256 public rewardsReserves;
 
     address public marketingAddress;
     address public liquidityAddress;
@@ -573,7 +579,6 @@ contract CryptoFixe is TradeManagedToken {
     event rewardsAddressChangedEvent(address rewardsAddress);
     event excludedFromFeesEvent(address indexed account, bool isExcluded);
     event setLPPairEvent(address indexed pair, bool indexed value);
-    event processFeeReservesEvent(uint256 liquidityReserves, uint256 marketingReserves, uint256 rewardsReserves);
     event feesChangedEvent(uint64 liqBuyFee, uint64 marketingBuyFee, uint64 rewardsBuyFee, uint64 liqSellFee, 
                             uint64 marketingSellFee, uint64 rewardsSellFee, uint64 transferFee, bool isNftFees);
 
@@ -581,6 +586,7 @@ contract CryptoFixe is TradeManagedToken {
         isExcludedFromFees[_msgSender()] = true;
         isExcludedFromFees[address(this)] = true;
         _addAdmin(address(this));
+        _mint(_msgSender(), 210_000_000 * 10**DECIMALS);
     }
 
     receive() external payable {
@@ -668,10 +674,10 @@ contract CryptoFixe is TradeManagedToken {
         uint64 liqSellFee,
         uint64 marketingSellFee,
         uint64 rewardsSellFee,
-        uint64 transferFee,
+        uint64 _transferFee,
         bool isNftFees
     ) external onlyOwner {
-        _setFees(liqBuyFee, marketingBuyFee, rewardsBuyFee, liqSellFee, marketingSellFee, rewardsSellFee, transferFee, isNftFees);
+        _setFees(liqBuyFee, marketingBuyFee, rewardsBuyFee, liqSellFee, marketingSellFee, rewardsSellFee, _transferFee, isNftFees);
     }
 
     function _setFees(
@@ -681,23 +687,26 @@ contract CryptoFixe is TradeManagedToken {
         uint64 liqSellFee,
         uint64 marketingSellFee,
         uint64 rewardsSellFee,
-        uint64 transferFee,
+        uint64 _transferFee,
         bool isNftFees
     ) internal {
         require(
             ((liqBuyFee + marketingBuyFee + rewardsBuyFee) <= maxFee ) 
             && ((liqSellFee + marketingSellFee + rewardsSellFee) <= maxFee)
-            && (transferFee <= maxFee),"Token: fees are too high");
+            && (_transferFee <= maxFee),"Token: fees are too high");
         if(isNftFees){
-            _especialNftFees = Fees(liqBuyFee, marketingBuyFee, rewardsBuyFee, liqSellFee, marketingSellFee, rewardsSellFee, transferFee);
+            _especialNftFees = Fees(liqBuyFee, marketingBuyFee, rewardsBuyFee, liqSellFee, marketingSellFee, rewardsSellFee, _transferFee);
             totalEspecialNftBuyFee = liqBuyFee + marketingBuyFee + rewardsBuyFee;
             totalEspecialNftSellFee = liqSellFee + marketingSellFee + rewardsSellFee;
+            transferEspecialNftFee = _transferFee;
+
         }else{
-            _fees = Fees(liqBuyFee, marketingBuyFee, rewardsBuyFee, liqSellFee, marketingSellFee, rewardsSellFee, transferFee);
+            _fees = Fees(liqBuyFee, marketingBuyFee, rewardsBuyFee, liqSellFee, marketingSellFee, rewardsSellFee, _transferFee);
             totalBuyFee = liqBuyFee + marketingBuyFee + rewardsBuyFee;
             totalSellFee = liqSellFee + marketingSellFee + rewardsSellFee;
+            transferFee = _transferFee;
         }
-        emit feesChangedEvent(liqBuyFee, marketingBuyFee, rewardsBuyFee, liqSellFee, marketingSellFee, rewardsSellFee, transferFee, isNftFees);
+        emit feesChangedEvent(liqBuyFee, marketingBuyFee, rewardsBuyFee, liqSellFee, marketingSellFee, rewardsSellFee, _transferFee, isNftFees);
     }
 
     function transferFrom(
@@ -748,27 +757,26 @@ contract CryptoFixe is TradeManagedToken {
             if(_fees.transferFee > 0 && !isExcludedFromFees[recipient] && !isExcludedFromFees[sender]) {
                 bool hasNFT = false;
                 if(especialNftFeesEnable){
-                    hasNFT = (_verifyNftOwnerForEspecialFees(sender) || _verifyNftOwnerForEspecialFees(recipient));
+                    hasNFT = (_verifyNftOwnerForEspecialFees(recipient) || _verifyNftOwnerForEspecialFees(sender));
                 }
                 if(hasNFT){
                     totalFees = (amount * _especialNftFees.transferFee) / DENOMINATOR;
                 }else{
                     totalFees = (amount * _fees.transferFee) / DENOMINATOR;
                 }
-                marketingReserves += totalFees;
+                if(totalFees > 0){
+                    super._transfer(sender, marketingAddress, totalFees);
+                }
             }
         }else{
-            totalFees = _calculateDexFees(isBuy, amount, (isBuy ? recipient : sender )) ;
+            totalFees = _processDexFees(sender, isBuy, amount, (isBuy ? recipient : sender )) ;
         }
         left = amount - totalFees;
         super._transfer(sender, recipient, left);
-        if(totalFees > 0){
-            super._transfer(sender, address(this), totalFees);
-        }
         return true;
     }
 
-    function _calculateDexFees(bool isBuy, uint256 amount, address toNftCheck) private returns(uint256) {
+    function _processDexFees(address sender,bool isBuy, uint256 amount, address toNftCheck) private returns(uint256) {
         uint256 liquidityFeeAmount = 0;
         uint256 marketingFeeAmount = 0;
         uint256 rewardsFeeAmount = 0;
@@ -826,9 +834,15 @@ contract CryptoFixe is TradeManagedToken {
         }
         totalFees = liquidityFeeAmount + marketingFeeAmount + rewardsFeeAmount;
         if(totalFees > 0){
-            liquidityReserves += liquidityFeeAmount;
-            marketingReserves += marketingFeeAmount;
-            rewardsReserves += rewardsFeeAmount;
+            if(marketingFeeAmount > 0){
+                super._transfer(sender, marketingAddress, marketingFeeAmount);
+            }
+            if(liquidityFeeAmount > 0){
+                super._transfer(sender, liquidityAddress, liquidityFeeAmount);
+            }
+            if(rewardsFeeAmount > 0){
+                super._transfer(sender, rewardsAddress, rewardsFeeAmount);
+            }
         }
         return totalFees;
     }
@@ -855,21 +869,5 @@ contract CryptoFixe is TradeManagedToken {
             nftList.push(collection);
         }
         emit nftCollectionForFeesEvent(collection, enabled);
-    }
-
-    function processFeeReserves() external onlyAdmin {
-        if(liquidityReserves > 0){
-            super._transfer(address(this), liquidityAddress, liquidityReserves);
-            liquidityReserves = 0;
-        }
-        if(marketingReserves > 0){
-            super._transfer(address(this), marketingAddress, marketingReserves);
-            marketingReserves = 0;
-        }
-        if(rewardsReserves > 0){
-            super._transfer(address(this), rewardsAddress, rewardsReserves);
-            rewardsReserves = 0;
-        }
-        emit processFeeReservesEvent(liquidityReserves, marketingReserves, rewardsReserves);
     }
 }
