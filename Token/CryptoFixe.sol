@@ -16,539 +16,22 @@
 
 pragma solidity ^0.8.21;
 
-string constant NAME = "CryptoFixe";
-string constant SYMBOL = "CoinFixe";
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 
-uint8 constant DECIMALS = 18;
-uint32 constant DENOMINATOR = 100000;
+contract CryptoFixe is ERC20, ERC20Burnable, Ownable {
 
-abstract contract Context {
-    function _msgSender() internal view virtual returns (address) {
-        return msg.sender;
-    }
-    function _msgData() internal view virtual returns (bytes calldata) {
-        return msg.data;
-    }
-}
+    string constant NAME = "CryptoFixe";
+    string constant SYMBOL = "CoinFixe";
 
-abstract contract Ownable is Context {
-    address private _owner;
+    uint8 constant DECIMALS = 18;
+    uint32 constant DENOMINATOR = 100000;
 
-    error OwnableUnauthorizedAccount(address account);
-    error OwnableInvalidOwner(address owner);
-    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
-
-    constructor() {
-        _transferOwnership(_msgSender());
-    }
-    modifier onlyOwner() {
-        _checkOwner();
-        _;
-    }
-    function owner() public view virtual returns (address) {
-        return _owner;
-    }
-    function _checkOwner() internal view virtual {
-        if (owner() != _msgSender()) {
-            revert OwnableUnauthorizedAccount(_msgSender());
-        }
-    }
-    function renounceOwnership() public virtual onlyOwner {
-        _transferOwnership(address(0));
-    }
-    function transferOwnership(address newOwner) public virtual onlyOwner {
-        if (newOwner == address(0)) {
-            revert OwnableInvalidOwner(address(0));
-        }
-        _transferOwnership(newOwner);
-    }
-    function _transferOwnership(address newOwner) internal virtual {
-        address oldOwner = _owner;
-        _owner = newOwner;
-        emit OwnershipTransferred(oldOwner, newOwner);
-    }
-}
-
-contract AccessControl is Ownable {
-    mapping(address => bool) private _admins;
-    mapping(address => bool) private _bridges;
-
-    event removeBridgeEvent(address account);
-    event addBridgeEvent(address account);
-    event addAdminEvent(address account);
-    event removeAdminEvent(address account);
-
-    constructor() {
-        _admins[_msgSender()] = true;
-    }
-    modifier onlyAdmin() {
-        require(owner() != address(0), "AccessControl: the contract is renounced.");
-        require(_admins[_msgSender()], "AccessControl: caller is not an admin");
-        _;
-    }
-    modifier onlyBridge() {
-        require(owner() != address(0), "AccessControl: the contract is renounced.");
-        require(_bridges[_msgSender()], "AccessControl: caller is not a bridge");
-        _;
-    }
-    function removeBridge(address account) external onlyOwner {
-        _bridges[account] = false;
-        emit removeBridgeEvent(account);
-    }
-    function addBridge(address account) external onlyOwner {
-        _bridges[account] = true;
-        emit addBridgeEvent(account);
-    }
-    function addAdmin(address account) external onlyOwner {
-        _admins[account] = true;
-        emit addAdminEvent(account);
-    }
-    function _addAdmin(address account) internal {
-        _admins[account] = true;
-    }
-    function removeAdmin(address account) external onlyOwner {
-        _admins[account] = false;
-        emit removeAdminEvent(account);
-    }
-    function isAdmin(address account) public view returns (bool) {
-        return _admins[account];
-    }
-    function renounceAdminship() external onlyAdmin {
-        _admins[_msgSender()] = false;
-    }
-    function isBridge(address account) public view returns (bool) {
-        return _bridges[account];
-    }
-    function isContract(address account) internal view returns (bool) {
-        return account.code.length > 0;
-    }
-}
-
-interface IERC20 {
-    event Transfer(address indexed from, address indexed to, uint256 value);
-    event Approval(address indexed owner, address indexed spender, uint256 value);
-
-    function totalSupply() external view returns (uint256);
-    function balanceOf(address account) external view returns (uint256);
-    function transfer(address to, uint256 amount) external returns (bool);
-    function allowance(address owner, address spender) external view returns (uint256);
-    function approve(address spender, uint256 amount) external returns (bool);
-    function transferFrom(address from, address to, uint256 amount) external returns (bool);
-}
-
-interface IERC20Metadata is IERC20 {
-    function name() external view returns (string memory);
-    function symbol() external view returns (string memory);
-    function decimals() external view returns (uint8);
-}
-
-interface IERC20Errors {
-    error ERC20InsufficientBalance(address sender, uint256 balance, uint256 needed);
-    error ERC20InvalidSender(address sender);
-    error ERC20InvalidReceiver(address receiver);
-    error ERC20InsufficientAllowance(address spender, uint256 allowance, uint256 needed);
-    error ERC20InvalidApprover(address approver);
-    error ERC20InvalidSpender(address spender);
-}
-
-abstract contract ERC20 is Context, IERC20, IERC20Metadata, IERC20Errors {
-    mapping(address => uint256) private _balances;
-
-    mapping(address => mapping(address => uint256)) private _allowances;
-
-    uint256 private _totalSupply;
-
-    string private _name;
-    string private _symbol;
-
-    error ERC20FailedDecreaseAllowance(address spender, uint256 currentAllowance, uint256 requestedDecrease);
-
-    constructor(string memory name_, string memory symbol_) {
-        _name = name_;
-        _symbol = symbol_;
-    }
-
-    function name() public view virtual returns (string memory) {
-        return _name;
-    }
-    function symbol() public view virtual returns (string memory) {
-        return _symbol;
-    }
-    function decimals() public view virtual returns (uint8) {
-        return DECIMALS;
-    }
-    function totalSupply() public view virtual returns (uint256) {
-        return _totalSupply;
-    }
-    function balanceOf(address account) public view virtual returns (uint256) {
-        return _balances[account];
-    }
-    function transfer(address to, uint256 value) public virtual returns (bool) {
-        address owner = _msgSender();
-        _transfer(owner, to, value);
-        return true;
-    }
-    function allowance(address owner, address spender) public view virtual returns (uint256) {
-        return _allowances[owner][spender];
-    }
-    function approve(address spender, uint256 value) public virtual returns (bool) {
-        address owner = _msgSender();
-        _approve(owner, spender, value);
-        return true;
-    }
-    function transferFrom(address from, address to, uint256 value) public virtual returns (bool) {
-        address spender = _msgSender();
-        _spendAllowance(from, spender, value);
-        _transfer(from, to, value);
-        return true;
-    }
-    function increaseAllowance(address spender, uint256 addedValue) public virtual returns (bool) {
-        address owner = _msgSender();
-        _approve(owner, spender, allowance(owner, spender) + addedValue);
-        return true;
-    }
-    function decreaseAllowance(address spender, uint256 requestedDecrease) public virtual returns (bool) {
-        address owner = _msgSender();
-        uint256 currentAllowance = allowance(owner, spender);
-        if (currentAllowance < requestedDecrease) {
-            revert ERC20FailedDecreaseAllowance(spender, currentAllowance, requestedDecrease);
-        }
-        unchecked {
-            _approve(owner, spender, currentAllowance - requestedDecrease);
-        }
-
-        return true;
-    }
-    function _transfer(address from, address to, uint256 value) internal virtual{
-        if (from == address(0)) {
-            revert ERC20InvalidSender(address(0));
-        }
-        if (to == address(0)) {
-            revert ERC20InvalidReceiver(address(0));
-        }
-        _update(from, to, value);
-    }
-    function _update(address from, address to, uint256 value) internal virtual {
-        if (from == address(0)) {
-            _totalSupply += value;
-        } else {
-            uint256 fromBalance = _balances[from];
-            if (fromBalance < value) {
-                revert ERC20InsufficientBalance(from, fromBalance, value);
-            }
-            unchecked {
-                _balances[from] = fromBalance - value;
-            }
-        }
-        if (to == address(0)) {
-            unchecked {
-                _totalSupply -= value;
-            }
-        } else {
-            unchecked {
-                _balances[to] += value;
-            }
-        }
-
-        emit Transfer(from, to, value);
-    }
-    function _mint(address account, uint256 value) internal {
-        if (account == address(0)) {
-            revert ERC20InvalidReceiver(address(0));
-        }
-        _update(address(0), account, value);
-    }
-    function _burn(address account, uint256 value) internal {
-        if (account == address(0)) {
-            revert ERC20InvalidSender(address(0));
-        }
-        _update(account, address(0), value);
-    }
-    function _approve(address owner, address spender, uint256 value) internal virtual {
-        _approve(owner, spender, value, true);
-    }
-    function _approve(address owner, address spender, uint256 value, bool emitEvent) internal virtual {
-        if (owner == address(0)) {
-            revert ERC20InvalidApprover(address(0));
-        }
-        if (spender == address(0)) {
-            revert ERC20InvalidSpender(address(0));
-        }
-        _allowances[owner][spender] = value;
-        if (emitEvent) {
-            emit Approval(owner, spender, value);
-        }
-    }
-    function _spendAllowance(address owner, address spender, uint256 value) internal virtual {
-        uint256 currentAllowance = allowance(owner, spender);
-        if (currentAllowance != type(uint256).max) {
-            if (currentAllowance < value) {
-                revert ERC20InsufficientAllowance(spender, currentAllowance, value);
-            }
-            unchecked {
-                _approve(owner, spender, currentAllowance - value, false);
-            }
-        }
-    }
-}
-
-library Address {
-    error AddressInsufficientBalance(address account);
-    error AddressEmptyCode(address target);
-    error FailedInnerCall();
-
-    function sendValue(address payable recipient, uint256 amount) internal {
-        if (address(this).balance < amount) {
-            revert AddressInsufficientBalance(address(this));
-        }
-
-        (bool success, ) = recipient.call{value: amount}("");
-        if (!success) {
-            revert FailedInnerCall();
-        }
-    }
-    function functionCall(address target, bytes memory data) internal returns (bytes memory) {
-        return functionCallWithValue(target, data, 0, defaultRevert);
-    }
-    function functionCall(
-        address target,
-        bytes memory data,
-        function() internal view customRevert
-    ) internal returns (bytes memory) {
-        return functionCallWithValue(target, data, 0, customRevert);
-    }
-    function functionCallWithValue(address target, bytes memory data, uint256 value) internal returns (bytes memory) {
-        return functionCallWithValue(target, data, value, defaultRevert);
-    }
-    function functionCallWithValue(
-        address target,
-        bytes memory data,
-        uint256 value,
-        function() internal view customRevert
-    ) internal returns (bytes memory) {
-        if (address(this).balance < value) {
-            revert AddressInsufficientBalance(address(this));
-        }
-        (bool success, bytes memory returndata) = target.call{value: value}(data);
-        return verifyCallResultFromTarget(target, success, returndata, customRevert);
-    }
-    function functionStaticCall(address target, bytes memory data) internal view returns (bytes memory) {
-        return functionStaticCall(target, data, defaultRevert);
-    }
-    function functionStaticCall(
-        address target,
-        bytes memory data,
-        function() internal view customRevert
-    ) internal view returns (bytes memory) {
-        (bool success, bytes memory returndata) = target.staticcall(data);
-        return verifyCallResultFromTarget(target, success, returndata, customRevert);
-    }
-    function functionDelegateCall(address target, bytes memory data) internal returns (bytes memory) {
-        return functionDelegateCall(target, data, defaultRevert);
-    }
-    function functionDelegateCall(
-        address target,
-        bytes memory data,
-        function() internal view customRevert
-    ) internal returns (bytes memory) {
-        (bool success, bytes memory returndata) = target.delegatecall(data);
-        return verifyCallResultFromTarget(target, success, returndata, customRevert);
-    }
-    function verifyCallResultFromTarget(
-        address target,
-        bool success,
-        bytes memory returndata,
-        function() internal view customRevert
-    ) internal view returns (bytes memory) {
-        if (success) {
-            if (returndata.length == 0) {
-                if (target.code.length == 0) {
-                    revert AddressEmptyCode(target);
-                }
-            }
-            return returndata;
-        } else {
-            _revert(returndata, customRevert);
-        }
-    }
-    function verifyCallResult(bool success, bytes memory returndata) internal view returns (bytes memory) {
-        return verifyCallResult(success, returndata, defaultRevert);
-    }
-    function verifyCallResult(
-        bool success,
-        bytes memory returndata,
-        function() internal view customRevert
-    ) internal view returns (bytes memory) {
-        if (success) {
-            return returndata;
-        } else {
-            _revert(returndata, customRevert);
-        }
-    }
-    function defaultRevert() internal pure {
-        revert FailedInnerCall();
-    }
-    function _revert(bytes memory returndata, function() internal view customRevert) private view {
-        if (returndata.length > 0) {
-            assembly {
-                let returndata_size := mload(returndata)
-                revert(add(32, returndata), returndata_size)
-            }
-        } else {
-            customRevert();
-            revert FailedInnerCall();
-        }
-    }
-}
-
-interface IERC20Permit {
-    function permit(
-        address owner,
-        address spender,
-        uint256 value,
-        uint256 deadline,
-        uint8 v,
-        bytes32 r,
-        bytes32 s
-    ) external;
-    function nonces(address owner) external view returns (uint256);
-    function DOMAIN_SEPARATOR() external view returns (bytes32);
-}
-
-library SafeERC20 {
-    using Address for address;
-
-    error SafeERC20FailedOperation(address token);
-    error SafeERC20FailedDecreaseAllowance(address spender, uint256 currentAllowance, uint256 requestedDecrease);
-
-    function safeTransfer(IERC20 token, address to, uint256 value) internal {
-        _callOptionalReturn(token, abi.encodeCall(token.transfer, (to, value)));
-    }
-    function safeTransferFrom(IERC20 token, address from, address to, uint256 value) internal {
-        _callOptionalReturn(token, abi.encodeCall(token.transferFrom, (from, to, value)));
-    }
-    function safeIncreaseAllowance(IERC20 token, address spender, uint256 value) internal {
-        uint256 oldAllowance = token.allowance(address(this), spender);
-        forceApprove(token, spender, oldAllowance + value);
-    }
-    function safeDecreaseAllowance(IERC20 token, address spender, uint256 requestedDecrease) internal {
-        unchecked {
-            uint256 currentAllowance = token.allowance(address(this), spender);
-            if (currentAllowance < requestedDecrease) {
-                revert SafeERC20FailedDecreaseAllowance(spender, currentAllowance, requestedDecrease);
-            }
-            forceApprove(token, spender, currentAllowance - requestedDecrease);
-        }
-    }
-    function forceApprove(IERC20 token, address spender, uint256 value) internal {
-        bytes memory approvalCall = abi.encodeCall(token.approve, (spender, value));
-
-        if (!_callOptionalReturnBool(token, approvalCall)) {
-            _callOptionalReturn(token, abi.encodeCall(token.approve, (spender, 0)));
-            _callOptionalReturn(token, approvalCall);
-        }
-    }
-    function safePermit(
-        IERC20Permit token,
-        address owner,
-        address spender,
-        uint256 value,
-        uint256 deadline,
-        uint8 v,
-        bytes32 r,
-        bytes32 s
-    ) internal {
-        uint256 nonceBefore = token.nonces(owner);
-        token.permit(owner, spender, value, deadline, v, r, s);
-        uint256 nonceAfter = token.nonces(owner);
-        if (nonceAfter != nonceBefore + 1) {
-            revert SafeERC20FailedOperation(address(token));
-        }
-    }
-    function _callOptionalReturn(IERC20 token, bytes memory data) private {
-        bytes memory returndata = address(token).functionCall(data);
-        if (returndata.length != 0 && !abi.decode(returndata, (bool))) {
-            revert SafeERC20FailedOperation(address(token));
-        }
-    }
-    function _callOptionalReturnBool(IERC20 token, bytes memory data) private returns (bool) {
-        (bool success, bytes memory returndata) = address(token).call(data);
-        return success && (returndata.length == 0 || abi.decode(returndata, (bool))) && address(token).code.length > 0;
-    }
-}
-
-interface IERC165 {
-    function supportsInterface(bytes4 interfaceId) external view returns (bool);
-}
-
-interface IERC721 is IERC165 {
-    function balanceOf(address owner) external view returns (uint256 balance);
-    function ownerOf(uint256 tokenId) external view returns (address owner);
-}
-
-abstract contract TradeManagedToken is ERC20, AccessControl {
-    bool private _trading = false;
+    uint256 public maxSupply = 1_000_000_000  * 10**DECIMALS ;
+    bool internal _trading = false;
     bool private _isBridgebled = false;
-    uint256 public maxSupply = 1_000_000_000;
-
-    event enableTradingEvent(bool isTrading);
-    event enableBridgeEvent(bool enable);
-    event reduceMaxSupplyGlobalEvent(uint256 amount);
-    event removeBridgeTokensEvent(address account, uint256 amount);
-
-    function isTrading() external view returns (bool) {
-        return _trading;
-    }
-    function isBridgebled() external view returns (bool) {
-        return _isBridgebled;
-    }
-    function enableTrading() external onlyOwner {
-        _trading = true;
-        emit enableTradingEvent(_trading);
-    }
-    function enableBridge(bool enable) external onlyOwner {
-        _isBridgebled = enable;
-        emit enableBridgeEvent(enable);
-    }
-    function _transfer(
-        address sender,
-        address recipient,
-        uint256 amount
-    ) internal virtual override {
-        require(
-            _trading || isAdmin(sender),
-            "TradeManagedToken: CryptoFixe has not been released or address is not a Launchpad."
-        );
-        super._transfer(sender, recipient, amount);
-    }
-    function mint(address account, uint256 amount) external onlyBridge {
-        require(_isBridgebled, "TradeManagedToken: Bridge is not enable." );
-        require((totalSupply() + amount) <= maxSupply * 10**DECIMALS ,"TradeManagedToken: Cannot mint more than the maximum supply" );
-        _mint(account, amount);
-    }
-    function burn(uint256 amount) external {
-        require(_msgSender().balance >= amount, "TradeManagedToken: Burn amount exceeds balance");
-        _burn(_msgSender(), amount);
-    }
-    function reduceMaxSupplyGlobal(uint256 amount) external onlyBridge {
-        require(_isBridgebled, "TradeManagedToken: Bridge is not enable." );
-        maxSupply = maxSupply - amount;
-        emit reduceMaxSupplyGlobalEvent(amount);
-    }
-}
-
-struct Fees {
-    uint64 liquidityBuyFee;
-    uint64 marketingBuyFee;
-    uint64 rewardsBuyFee;
-    uint64 liquiditySellFee;
-    uint64 marketingSellFee;
-    uint64 rewardsSellFee;
-    uint64 transferFee;
-}
-
-contract CryptoFixe is TradeManagedToken {
-    using SafeERC20 for IERC20;
 
     Fees public _fees = Fees(0,0,0,0,0,0,0);
     Fees public _especialNftFees = Fees(0,0,0,0,0,0,0);
@@ -573,6 +56,11 @@ contract CryptoFixe is TradeManagedToken {
 
     uint16 public maxFee = 5000;
 
+    event enableTradingEvent(bool isTrading);
+    event enableBridgeEvent(bool enable);
+    event reduceMaxSupplyGlobalEvent(uint256 amount);
+    event removeBridgeTokensEvent(address account, uint256 amount);
+
     event nftCollectionForFeesEvent(address collection, bool enabled);
     event marketingAddressChangedEvent(address marketingAddress);
     event liquidityAddressChangedEvent(address liquidityAddress);
@@ -585,11 +73,14 @@ contract CryptoFixe is TradeManagedToken {
     constructor() ERC20(NAME, SYMBOL) {
         isExcludedFromFees[_msgSender()] = true;
         isExcludedFromFees[address(this)] = true;
-        _addAdmin(address(this));
         _mint(_msgSender(), 210_000_000 * 10**DECIMALS);
     }
 
     receive() external payable {
+    }
+
+    function isTrading() external view returns (bool) {
+        return _trading;
     }
 
     function claimStuckTokens(address token) external onlyOwner {
@@ -653,18 +144,22 @@ contract CryptoFixe is TradeManagedToken {
         require(newValue < maxFee, "Token: Max fee cannot increase");
         maxFee = newValue;
         if(newValue == 0){
-            _removeFeeForever();
+            _fees = Fees(0,0,0,0,0,0,0);
+            _especialNftFees = Fees(0,0,0,0,0,0,0);
         }
-    }
-
-    function _removeFeeForever() private{
-        maxFee = 0;
-        _setFees(0, 0, 0, 0, 0, 0, 0, false);
-        _setFees(0, 0, 0, 0, 0, 0, 0, true);
     }
     
     function enableEspecialNftFees(bool enable) external onlyOwner{
         especialNftFeesEnable = enable;
+    }
+    struct Fees {
+        uint64 liquidityBuyFee;
+        uint64 marketingBuyFee;
+        uint64 rewardsBuyFee;
+        uint64 liquiditySellFee;
+        uint64 marketingSellFee;
+        uint64 rewardsSellFee;
+        uint64 transferFee;
     }
 
     function setFees(
@@ -677,20 +172,7 @@ contract CryptoFixe is TradeManagedToken {
         uint64 _transferFee,
         bool isNftFees
     ) external onlyOwner {
-        _setFees(liqBuyFee, marketingBuyFee, rewardsBuyFee, liqSellFee, marketingSellFee, rewardsSellFee, _transferFee, isNftFees);
-    }
-
-    function _setFees(
-        uint64 liqBuyFee,
-        uint64 marketingBuyFee,
-        uint64 rewardsBuyFee,
-        uint64 liqSellFee,
-        uint64 marketingSellFee,
-        uint64 rewardsSellFee,
-        uint64 _transferFee,
-        bool isNftFees
-    ) internal {
-        require(
+       require(
             ((liqBuyFee + marketingBuyFee + rewardsBuyFee) <= maxFee ) 
             && ((liqSellFee + marketingSellFee + rewardsSellFee) <= maxFee)
             && (_transferFee <= maxFee),"Token: fees are too high");
@@ -719,24 +201,14 @@ contract CryptoFixe is TradeManagedToken {
             _msgSender(),
             allowance(sender, _msgSender()) - amount
         );
-        if(totalBuyFee > 0 || totalSellFee > 0){
-            return _customTransfer(sender, recipient, amount);
-        }else{
-            super._transfer(sender, recipient, amount);
-            return true;
-        }
+        return _customTransfer(sender, recipient, amount);
     }
 
     function transfer(
         address recipient, 
         uint256 amount) 
         public virtual override returns (bool){
-        if(totalBuyFee > 0 || totalSellFee > 0){
            return _customTransfer(_msgSender(), recipient, amount);
-        }else{
-            super._transfer(_msgSender(), recipient, amount);
-            return true;
-        }
     }
 
     function _customTransfer(
@@ -744,6 +216,7 @@ contract CryptoFixe is TradeManagedToken {
         address recipient, 
         uint256 amount) 
         private returns (bool) {
+        require(_trading || owner() == sender || owner() == recipient, "TradeManagedToken: CryptoFixe has not been released");
         require(amount > 0, "Token: Cannot transfer zero(0) tokens");
         uint256 totalFees = 0;
         uint256 left = 0;
@@ -756,7 +229,7 @@ contract CryptoFixe is TradeManagedToken {
         ){
             if(_fees.transferFee > 0 && !isExcludedFromFees[recipient] && !isExcludedFromFees[sender]) {
                 bool hasNFT = false;
-                if(especialNftFeesEnable){
+                if(especialNftFeesEnable && _especialNftFees.transferFee > 0){
                     hasNFT = (_verifyNftOwnerForEspecialFees(recipient) || _verifyNftOwnerForEspecialFees(sender));
                 }
                 if(hasNFT){
@@ -769,7 +242,7 @@ contract CryptoFixe is TradeManagedToken {
                 }
             }
         }else{
-            totalFees = _processDexFees(sender, isBuy, amount, (isBuy ? recipient : sender )) ;
+            totalFees = _processDexFees(sender, isBuy, amount, (isBuy ? recipient : sender ));
         }
         left = amount - totalFees;
         super._transfer(sender, recipient, left);
@@ -869,5 +342,26 @@ contract CryptoFixe is TradeManagedToken {
             nftList.push(collection);
         }
         emit nftCollectionForFeesEvent(collection, enabled);
+    }
+    function isBridgebled() external view returns (bool) {
+        return _isBridgebled;
+    }
+    function enableTrading() external onlyOwner {
+        _trading = true;
+        emit enableTradingEvent(_trading);
+    }
+    function enableBridge(bool enable) external onlyOwner {
+        _isBridgebled = enable;
+        emit enableBridgeEvent(enable);
+    }
+    function mint(address account, uint256 amount) external onlyOwner {
+        require(_isBridgebled, "TradeManagedToken: Bridge is not enable." );
+        require((totalSupply() + amount) <= maxSupply,"TradeManagedToken: Cannot mint more than the maximum supply" );
+        _mint(account, amount);
+    }
+    function reduceMaxSupplyGlobal(uint256 amount) external onlyOwner {
+        require(_isBridgebled, "TradeManagedToken: Bridge is not enable." );
+        maxSupply = maxSupply - amount;
+        emit reduceMaxSupplyGlobalEvent(amount);
     }
 }
