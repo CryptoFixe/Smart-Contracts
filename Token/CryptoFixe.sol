@@ -152,6 +152,7 @@ contract CryptoFixe is ERC20, ERC20Burnable, Ownable {
     function enableEspecialNftFees(bool enable) external onlyOwner{
         especialNftFeesEnable = enable;
     }
+
     struct Fees {
         uint64 liquidityBuyFee;
         uint64 marketingBuyFee;
@@ -343,25 +344,30 @@ contract CryptoFixe is ERC20, ERC20Burnable, Ownable {
         }
         emit nftCollectionForFeesEvent(collection, enabled);
     }
-    function isBridgebled() external view returns (bool) {
-        return _isBridgebled;
-    }
-    function enableTrading() external onlyOwner {
-        _trading = true;
-        emit enableTradingEvent(_trading);
-    }
-    function enableBridge(bool enable) external onlyOwner {
-        _isBridgebled = enable;
-        emit enableBridgeEvent(enable);
-    }
+
     function mint(address account, uint256 amount) external onlyOwner {
         require(_isBridgebled, "TradeManagedToken: Bridge is not enable." );
         require((totalSupply() + amount) <= maxSupply,"TradeManagedToken: Cannot mint more than the maximum supply" );
         _mint(account, amount);
     }
+
     function reduceMaxSupplyGlobal(uint256 amount) external onlyOwner {
         require(_isBridgebled, "TradeManagedToken: Bridge is not enable." );
         maxSupply = maxSupply - amount;
         emit reduceMaxSupplyGlobalEvent(amount);
+    }
+
+    function isBridgebled() external view returns (bool) {
+        return _isBridgebled;
+    }
+
+    function enableTrading() external onlyOwner {
+        _trading = true;
+        emit enableTradingEvent(_trading);
+    }
+    
+    function enableBridge(bool enable) external onlyOwner {
+        _isBridgebled = enable;
+        emit enableBridgeEvent(enable);
     }
 }
