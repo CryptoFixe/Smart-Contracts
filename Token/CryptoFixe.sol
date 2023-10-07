@@ -70,7 +70,7 @@ contract CryptoFixe is ERC20, ERC20Burnable, Ownable {
     event feesChangedEvent(uint64 liqBuyFee, uint64 marketingBuyFee, uint64 rewardsBuyFee, uint64 liqSellFee, 
                             uint64 marketingSellFee, uint64 rewardsSellFee, uint64 transferFee, bool isNftFees);
 
-    constructor() ERC20(NAME, SYMBOL) {
+    constructor() ERC20(NAME, SYMBOL) Ownable(_msgSender()) {
         isExcludedFromFees[_msgSender()] = true;
         isExcludedFromFees[address(this)] = true;
         _mint(_msgSender(), 210_000_000 * 10**DECIMALS);
